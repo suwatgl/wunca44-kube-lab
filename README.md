@@ -15,7 +15,7 @@
 
 ## Network diagram
 
-```mermaid
+```
                     10.0.2.5
                   +----+
                   | W1 |
