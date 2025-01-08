@@ -10,12 +10,12 @@
 - [Step 6. Install helm](#step6)
 - [Step 7. Install Kubernetes Dashboard](#step7)
 - [Step 8. Install NGINX Gateway Controller](#step8)
--
+- [Step 9. Deploy example site](#step9)
 -
 
 ## Network diagram
 
-```
+```text
                     10.0.2.5
                   +----+
                   | W1 |
@@ -45,16 +45,16 @@
 
 | Software Name             | Version   | Reference                                         |
 | ------------------------- | --------- | ------------------------------------------------- |
-| Virtualbox                | 7.1.4     | https://download.virtualbox.org/virtualbox/7.1.4/ |
-| VirtualBox Extension Pack | 7.1.4     | https://download.virtualbox.org/virtualbox/7.1.4/ |
-| VboxGuestAdditions        | 7.1.4     | https://download.virtualbox.org/virtualbox/7.1.4/ |
-| Ubuntu Server             | 24.04 LTS | https://ubuntu.com/download/server                |
-| containerd.io             |           | https://github.com/containerd/containerd          |
-| crictl                    | 1.32.0    |                                                   |
-| kubernetes                | 1.32      |                                                   |
-| calico                    | 3.29.1    |                                                   |
-| helm                      |           |                                                   |
-| Nginx Gateway Fabric      | 1.5       |                                                   |
+| Virtualbox                | 7.1.4     | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.4/) |
+| VirtualBox Extension Pack | 7.1.4     | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.4/) |
+| VboxGuestAdditions        | 7.1.4     | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.4/) |
+| Ubuntu Server             | 24.04 LTS | [https://ubuntu.com](https://ubuntu.com/download/server)                |
+| containerd.io             | 1.7.24    | https://github.com/containerd/containerd          |
+| crictl                    | 1.32.0    | https://github.com/kubernetes-sigs/cri-tools      |
+| kubernetes                | 1.32.0    | https://kubernetes.io/releases/download/          |
+| calico                    | 3.29.1    | https://github.com/projectcalico/calico           |
+| helm                      | 3.16.3    | https://helm.sh/docs/intro/install/               |
+| Nginx Gateway Fabric      | 1.5.1     | https://github.com/nginx/nginx-gateway-fabric     |
 
 <a id="step1"></a>
 
@@ -74,6 +74,8 @@
 
     | Name      | Protocal | Host IP | Host Port | Guest IP | Guest Port |
     | --------- | -------- | ------- | --------- | -------- | ---------- |
+    | HTTP      | TCP      |         | 80        | 10.0.2.4 | 80         |
+    | HTTPS     | TCP      |         | 443       | 10.0.2.4 | 443        |
     | Dashboard | TCP      |         | 8443      | 10.0.2.4 | 8443       |
     | SSH4      | TCP      |         | 2224      | 10.0.2.4 | 22         |
     | SSH5      | TCP      |         | 2225      | 10.0.2.5 | 22         |
@@ -455,20 +457,123 @@ https://localhost:8443
 
 ## Step 8. Install NGINX Gateway Controller
 
+### Install NGINX Gateway fabric
+
+#### 1. Install the Gateway API resources
+
 ```bash
 kubectl kustomize "https://github.com/nginxinc/nginx-gateway-fabric/config/crd/gateway-api/standard?ref=v1.5.1" | kubectl apply -f -
-kubectl apply -f https://raw.githubusercontent.com/nginxinc/nginx-gateway-fabric/v1.5.1/deploy/crds.yaml
-kubectl apply -f https://raw.githubusercontent.com/nginxinc/nginx-gateway-fabric/v1.5.1/deploy/default/deploy.yaml
-kubectl get pods -n nginx-gateway
+```
 
+#### 2. Deploy the NGINX Gateway Fabric CRDs
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/nginxinc/nginx-gateway-fabric/v1.5.1/deploy/crds.yaml
+```
+
+#### 3. Deploy NGINX Gateway Fabric
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/nginxinc/nginx-gateway-fabric/v1.5.1/deploy/default/deploy.yaml
+```
+
+#### 4. Verify the Deployment
+
+```bash
+kubectl get pods -n nginx-gateway
+```
+
+#### 5. Access NGINX Gateway Fabric
+
+##### Retrieve the External IP and Port
+
+```bash
+kubectl get svc nginx-gateway -n nginx-gateway
+```
+
+##### Patch nginx-gateway service for assign external ip
+
+```bash
+kubectl patch svc nginx-gateway -n nginx-gateway -p '{"spec": {"externalIPs": ["10.0.2.4"]}}'
+kubectl get svc nginx-gateway -n nginx-gateway -o wide
+```
+
+```bash
 git clone -b release-1.5 https://github.com/nginxinc/nginx-gateway-fabric.git
 
 kubectl apply -f https://github.com/nginxinc/nginx-kubernetes-gateway/releases/latest/download/deploy.yaml
+
 kubectl get pods -n nginx-gateway
 kubectl get crds | grep gateway
 kubectl get gateway,httproute
 ```
 
+### Upgrade Gateway API resources
+
+```bash
+kubectl kustomize "https://github.com/nginxinc/nginx-gateway-fabric/config/crd/gateway-api/standard?ref=v1.5.1" | kubectl apply -f -
+```
+
+### Upgrade NGINX Gateway Fabric CRDs
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/nginxinc/nginx-gateway-fabric/v1.5.1/deploy/crds.yaml
+```
+
+<a id="step9"></a>
+
+# Step 9. Deploy example site
+
+## Clone Nginx Gateway Fabric
+
+```bash
+cd namespace
+git clone -b release-1.5 https://github.com/nginxinc/nginx-gateway-fabric.git
+cd nginx-gateway-fabric
+```
+
+### Go to cafe-example
+
+```bash
+cd examples/cafe-example
+```
+
+#### Deploy the Cafe Application
+
+```bash
+kubectl apply -f cafe.yaml
+kubectl -n default get pods -o wide
+```
+
+#### Configure Routing
+
+```bash
+kubectl apply -f gateway.yaml
+kubectl apply -f cafe-routes.yaml
+```
+
+#### Test the Application
+
+```bash
+curl --resolve cafe.example.com:$GW_PORT:$GW_IP http://cafe.example.com:$GW_PORT/coffee
+```
+
+```bash
+Server address: 10.12.0.18:80
+Server name: coffee-7586895968-r26zn
+```
+
+```bash
+curl --resolve cafe.example.com:$GW_PORT:$GW_IP http://cafe.example.com:$GW_PORT/tea
+```
+
+```bash
+Server address: 10.12.0.19:80
+Server name: tea-7cd44fcb4d-xfw2x
+```
+
 [1]: https://download.virtualbox.org/virtualbox/7.1.4/Oracle_VirtualBox_Extension_Pack-7.1.4-165100.vbox-extpack
 [2]: https://ubuntu.com/download/server
 [3]: https://download.virtualbox.org/virtualbox/7.1.4/VBoxGuestAdditions_7.1.4.iso
+
+
