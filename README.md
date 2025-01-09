@@ -9,7 +9,7 @@
 - [Step 5. Join with kubernetes cluster](#step5)
 - [Step 6. Install helm](#step6)
 - [Step 7. Install Kubernetes Dashboard](#step7)
-- [Step 8. Install NGINX Gateway Controller](#step8)
+- [Step 8. Install NGINX Gateway Fabric](#step8)
 - [Step 9. Deploy example site](#step9)
 -
 
@@ -36,10 +36,10 @@
 
 | Server Role | Host Name | Configuration         | IP Address | Network Adapter |
 | ----------- | --------- | --------------------- | ---------- | --------------- |
-| Master Node | Master01  | 8GB Ram, 4vcpus, 20GB | 10.0.2.4   | NAT Network     |
-| Worker Node | Worker01  | 4GB Ram, 2vcpus, 20GB | 10.0.2.5   | NAT Network     |
-| Worker Node | Worker02  | 4GB Ram, 2vcpus, 20GB | 10.0.2.6   | NAT Network     |
-| Worker Node | Worker03  | 4GB Ram, 2vcpus, 20GB | 10.0.2.7   | NAT Network     |
+| Master Node | Master01  | 4GB Ram, 4vcpus, 20GB | 10.0.2.4   | NAT Network     |
+| Worker Node | Worker01  | 2GB Ram, 2vcpus, 20GB | 10.0.2.5   | NAT Network     |
+| Worker Node | Worker02  | 2GB Ram, 2vcpus, 20GB | 10.0.2.6   | NAT Network     |
+| Worker Node | Worker03  | 2GB Ram, 2vcpus, 20GB | 10.0.2.7   | NAT Network     |
 
 ## Software
 
@@ -49,12 +49,12 @@
 | VirtualBox Extension Pack | 7.1.4     | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.4/) |
 | VboxGuestAdditions        | 7.1.4     | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.4/) |
 | Ubuntu Server             | 24.04 LTS | [https://ubuntu.com](https://ubuntu.com/download/server)                |
-| containerd.io             | 1.7.24    | https://github.com/containerd/containerd          |
-| crictl                    | 1.32.0    | https://github.com/kubernetes-sigs/cri-tools      |
-| kubernetes                | 1.32.0    | https://kubernetes.io/releases/download/          |
-| calico                    | 3.29.1    | https://github.com/projectcalico/calico           |
-| helm                      | 3.16.3    | https://helm.sh/docs/intro/install/               |
-| Nginx Gateway Fabric      | 1.5.1     | https://github.com/nginx/nginx-gateway-fabric     |
+| containerd.io             | 1.7.24    | [https://github.com/containerd/containerd](https://github.com/containerd/containerd)          |
+| crictl                    | 1.32.0    | [https://github.com/kubernetes-sigs/cri-tools](https://github.com/kubernetes-sigs/cri-tools)      |
+| kubernetes                | 1.32.0    | [https://kubernetes.io/releases/download/](https://kubernetes.io/releases/download/)          |
+| calico                    | 3.29.1    | [https://github.com/projectcalico/calico](https://github.com/projectcalico/calico)           |
+| helm                      | 3.16.3    | [https://helm.sh/docs/intro/install/](https://helm.sh/docs/intro/install/)               |
+| Nginx Gateway Fabric      | 1.5.1     | [https://github.com/nginx/nginx-gateway-fabric](https://github.com/nginx/nginx-gateway-fabric)     |
 
 <a id="step1"></a>
 
@@ -152,34 +152,40 @@ sudo sed -i '/ swap / s/^\(.\*\)$/#\1/g' /etc/fstab
 
 ```bash
 sudo modprobe overlay && \
-sudo modprobe br_netfilter && \
+sudo modprobe br_netfilter
+
 sudo tee /etc/modules-load.d/k8s.conf <<EOF
 overlay
 br_netfilter
 EOF
+
 sudo tee /etc/sysctl.d/k8s.conf <<EOF
 net.bridge.bridge-nf-call-ip6tables = 1
 net.bridge.bridge-nf-call-iptables = 1
 net.ipv4.ip_forward = 1
 EOF
+
 sudo sysctl --system
 ```
 
-### Add Docker's official GPG key:
+### Add Docker's official GPG key
 
 ```bash
 sudo install -m 0755 -d /etc/apt/keyrings
+
 sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+
 sudo chmod a+r /etc/apt/keyrings/docker.asc
 ```
 
-### Add the repository to Apt sources:
+### Add the repository to Apt sources
 
 ```bash
 echo \
  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
 sudo apt-get update
 ```
 
@@ -222,7 +228,9 @@ sudo sysctl -p
 
 ```bash
 wget https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.32.0/crictl-v1.32.0-linux-arm64.tar.gz
+
 sudo tar zxvf crictl-v1.32.0-linux-arm64.tar.gz -C /usr/local/bin
+
 rm -f crictl-v1.32.0-linux-arm64.tar.gz
 ```
 
@@ -237,7 +245,9 @@ cat /proc/sys/net/ipv4/ip_forward
 
 ```bash
 sudo mkdir -p -m 755 /etc/apt/keyrings
+
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
 echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
 
 sudo apt-get update && \
@@ -271,7 +281,7 @@ sudo init 0
 sudo vi /etc/hostname
 ```
 
-#### Change VM Worker01 IP Address to `10.0.2.5`
+#### Change VM Worker01 IP Address to `10.0.2.5` and turn off MV
 
 ```bash
 sudo vi /etc/netplan/50-cloud-init.yaml
@@ -287,7 +297,7 @@ sudo init 0
 sudo vi /etc/hostname
 ```
 
-#### Change VM Worker02 IP Address to `10.0.2.6`
+#### Change VM Worker02 IP Address to `10.0.2.6` and turn off MV
 
 ```bash
 sudo vi /etc/netplan/50-cloud-init.yaml
@@ -303,7 +313,7 @@ sudo init 0
 sudo vi /etc/hostname
 ```
 
-#### Change VM Worker03 IP Address to `10.0.2.7`
+#### Change VM Worker03 IP Address to `10.0.2.7` and turn off MV
 
 ```bash
 sudo vi /etc/netplan/50-cloud-init.yaml
@@ -317,7 +327,7 @@ sudo init 0
 
 ## Step 4. Initialize control-plane node (Master Node only)
 
-#### Initialize control-plane node
+### Initialize control-plane node
 
 ```bash
 sudo kubeadm init --pod-network-cidr=192.168.0.0/16 --cri-socket=/var/run/containerd/containerd.sock --v=5
@@ -349,7 +359,7 @@ kubeadm join 10.0.2.4:6443 --token tr5tga.1zh2ggq5hjmrbw20 \
  --discovery-token-ca-cert-hash sha256:474f33595720b9327d581dbbfa728024802ea4cb7cbe144218b7c326075548aa
 ```
 
-#### Check nodes and pods on Master node
+### Check nodes and pods on Master node
 
 ```bash
 kubectl get nodes -o wide
@@ -362,8 +372,11 @@ kubectl get pods -o wide --all-namespaces
 
 ```bash
 curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+
 sudo apt-get install apt-transport-https --yes
+
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+
 sudo apt-get update
 sudo apt-get install helm
 ```
@@ -377,13 +390,17 @@ mkdir namespaces
 cd namespaces
 mkdir kubernetes-dashboard
 cd kubernetes-dashboard
+
 helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
+
 helm upgrade --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard --create-namespace --namespace kubernetes-dashboard
+
 kubectl -n kubernetes-dashboard port-forward --address 0.0.0.0 svc/kubernetes-dashboard-kong-proxy 8443:443
+
 kubectl -n kubernetes-dashboard get svc -o wide
 ```
 
-#### Install screen
+### Install screen
 
 ```bash
 sudo apt-get install screen
@@ -455,7 +472,7 @@ https://localhost:8443
 
 <a id="step8"></a>
 
-## Step 8. Install NGINX Gateway Controller
+## Step 8. Install NGINX Gateway Frabic Controller
 
 ### Install NGINX Gateway fabric
 
@@ -480,7 +497,7 @@ kubectl apply -f https://raw.githubusercontent.com/nginxinc/nginx-gateway-fabric
 #### 4. Verify the Deployment
 
 ```bash
-kubectl get pods -n nginx-gateway
+kubectl get pods -n nginx-gateway -o wide
 ```
 
 #### 5. Access NGINX Gateway Fabric
@@ -495,6 +512,7 @@ kubectl get svc nginx-gateway -n nginx-gateway
 
 ```bash
 kubectl patch svc nginx-gateway -n nginx-gateway -p '{"spec": {"externalIPs": ["10.0.2.4"]}}'
+
 kubectl get svc nginx-gateway -n nginx-gateway -o wide
 ```
 
@@ -522,9 +540,9 @@ kubectl apply -f https://raw.githubusercontent.com/nginxinc/nginx-gateway-fabric
 
 <a id="step9"></a>
 
-# Step 9. Deploy example site
+## Step 9. Deploy example site
 
-## Clone Nginx Gateway Fabric
+### Clone Nginx Gateway Fabric from github
 
 ```bash
 cd namespace
@@ -550,12 +568,14 @@ kubectl -n default get pods -o wide
 ```bash
 kubectl apply -f gateway.yaml
 kubectl apply -f cafe-routes.yaml
+
+kubectl describe gateway gateway
 ```
 
 #### Test the Application
 
 ```bash
-curl --resolve cafe.example.com:$GW_PORT:$GW_IP http://cafe.example.com:$GW_PORT/coffee
+curl --resolve cafe.example.com:80:10.0.2.4 http://cafe.example.com/coffee -v
 ```
 
 ```bash
@@ -564,7 +584,7 @@ Server name: coffee-7586895968-r26zn
 ```
 
 ```bash
-curl --resolve cafe.example.com:$GW_PORT:$GW_IP http://cafe.example.com:$GW_PORT/tea
+curl --resolve cafe.example.com:80:10.0.2.4 http://cafe.example.com/tea -v
 ```
 
 ```bash
@@ -572,8 +592,9 @@ Server address: 10.12.0.19:80
 Server name: tea-7cd44fcb4d-xfw2x
 ```
 
-[1]: https://download.virtualbox.org/virtualbox/7.1.4/Oracle_VirtualBox_Extension_Pack-7.1.4-165100.vbox-extpack
-[2]: https://ubuntu.com/download/server
-[3]: https://download.virtualbox.org/virtualbox/7.1.4/VBoxGuestAdditions_7.1.4.iso
+#### Check the generated nginx config
 
-
+```bash
+kubectl get pods -n nginx-gateway
+kubectl exec -it -n nginx-gateway nginx-gateway-964449b44-c45f4 -c nginx -- nginx -T
+```
