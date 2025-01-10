@@ -232,6 +232,14 @@ wget https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.32.0/cric
 sudo tar zxvf crictl-v1.32.0-linux-arm64.tar.gz -C /usr/local/bin
 
 rm -f crictl-v1.32.0-linux-arm64.tar.gz
+
+crictl commands:
+  crictl info
+  crictl images
+  crictl ps
+  crictl pods
+  crictl stats
+
 ```
 
 ### Validate Containerd and IP Forwarding
