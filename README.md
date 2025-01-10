@@ -146,6 +146,13 @@ sudo apt install gcc make perl build-essential bzip2 tar apt-transport-https ca-
 ```bash
 sudo swapoff -a && \
 sudo sed -i '/ swap / s/^\(.\*\)$/#\1/g' /etc/fstab
+
+sudo swapoff -a
+vi /etc/fstab (to comment out or remove the swap entry)
+sudo rm -f /swap.img (to delete the swap file)
+(optional) sudo systemctl list-units | grep swap
+systemctl disable swap.target
+reboot
 ```
 
 ### Configure Ubuntu 24.04 enable kernel modules
