@@ -112,7 +112,7 @@ network:
           metric: 100
       nameservers:
         search: [local]
-        addresses: [10.0.2.1, 8.8.8.8, 8.8.8.4]
+        addresses: [ 8.8.8.8, 8.8.8.4]
   dhcp4: false
 version: 2
 ```
@@ -207,8 +207,6 @@ sudo vi /etc/containerd/config.toml
 ```
 
 ```yaml
-[plugins."io.containerd.grpc.v1.cri".containerd]
-  snapshotter = "overlayfs"
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
   SystemdCgroup = true
 ```
@@ -219,30 +217,21 @@ sudo systemctl enable containerd && \
 systemctl status containerd
 ```
 
-### Enable IP Forwarding
-
-```bash
-echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward && \
-sudo sh -c "echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf" && \
-sudo sysctl -p
-```
 
 ### Install crictl
 
 ```bash
-wget https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.32.0/crictl-v1.32.0-linux-arm64.tar.gz
+wget https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.32.0/crictl-v1.32.0-linux-$(dpkg --print-architecture).tar.gz
 
 sudo tar zxvf crictl-v1.32.0-linux-arm64.tar.gz -C /usr/local/bin
 
 rm -f crictl-v1.32.0-linux-arm64.tar.gz
 
-crictl commands:
-  crictl info
-  crictl images
-  crictl ps
-  crictl pods
-  crictl stats
-
+crictl info
+crictl images
+crictl ps
+crictl pods
+crictl stats
 ```
 
 ### Validate Containerd and IP Forwarding
