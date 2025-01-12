@@ -4,6 +4,10 @@
 
 - [Step 1. Setup Virtualbox ENV](#step1)
 - [Step 2. Create Master01 VM and Install Ubuntu 24.04 LTS](#step2)
+  - 2.1 Update Upgrade package and clone master1 to worker1
+  - 2.2 Config Network Adapter master1 (Master1 Only)
+  - 2.3 Config Network Adapter worker1 (Worker1 Only)
+  - 2.4 Install programs (master1 and worker1)
 - [Step 3. Clone Master01 to Worker node 01 - 03](#step3)
 - [Step 4. Initialize control-plane node](#step4)
 - [Step 5. Join with kubernetes cluster](#step5)
@@ -34,12 +38,13 @@
 
 ## Virtual Machines (1 Master, 3 Workers)
 
-| Server Role | Host Name | Configuration         | IP Address | Network Adapter |
-| ----------- | --------- | --------------------- | ---------- | --------------- |
-| Master Node | Master01  | 4GB Ram, 4vcpus, 20GB | 10.0.2.4   | NAT Network     |
-| Worker Node | Worker01  | 2GB Ram, 2vcpus, 20GB | 10.0.2.5   | NAT Network     |
-| Worker Node | Worker02  | 2GB Ram, 2vcpus, 20GB | 10.0.2.6   | NAT Network     |
-| Worker Node | Worker03  | 2GB Ram, 2vcpus, 20GB | 10.0.2.7   | NAT Network     |
+| Server Role | Host Name | Configuration         | Network Adapter  | IP Address |
+| ----------- | --------- | --------------------- | ---------------- | ---------- |
+| Master Node | Master01  | 4GB Ram, 4vcpus, 20GB | Bridged Adapter  | DHCP       |
+|             |           |                       | Internal Newtork | 10.0.2.4   |
+| Worker Node | Worker01  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.5   |
+| Worker Node | Worker02  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.6   |
+| Worker Node | Worker03  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.7   |
 
 ## Software
 
@@ -64,38 +69,105 @@
   - Oracle_VirtualBox_Extension_Pack-7.1.4-165100.vbox-extpack
 - Add optical disk
   - ubuntu-24.04.1-live-server-arm64.iso
-  - VboxGuestAdditions_7.1.4.iso
-- Create NAT Networks
-
-  - Name: `NatNetwork`
-  - IPv4 Prefix: `10.0.2.0/24`
-  - Enable DHCP: `true`
-  - Add port forwarding
-
-    | Name      | Protocal | Host IP | Host Port | Guest IP | Guest Port |
-    | --------- | -------- | ------- | --------- | -------- | ---------- |
-    | HTTP      | TCP      |         | 80        | 10.0.2.4 | 80         |
-    | HTTPS     | TCP      |         | 443       | 10.0.2.4 | 443        |
-    | Dashboard | TCP      |         | 8443      | 10.0.2.4 | 8443       |
-    | SSH4      | TCP      |         | 2224      | 10.0.2.4 | 22         |
-    | SSH5      | TCP      |         | 2225      | 10.0.2.5 | 22         |
-    | SSH6      | TCP      |         | 2226      | 10.0.2.6 | 22         |
-    | SSH7      | TCP      |         | 2227      | 10.0.2.7 | 22         |
 
 <a id="step2"></a>
 
-## Step 2. Create Master01 VM and Install Ubuntu 24.04 LTS Server
+## Step 2. Create VM (Master01) and Install Ubuntu 24.04 LTS Server
 
-### Update and Upgrade package
+### 2.1 Update Upgrade package and clone master1 to worker1
 
 ```bash
 sudo apt update && \
 sudo apt upgrade -y && \
-sudo apt install net-tools network-managerm ssh -y && \
+sudo apt install net-tools network-manager ssh iproute2 iptables inetutils-ping -y && \
 sudo systemctl enable ssh
+
+sudo init 0
 ```
 
-### config network ip address
+- Clone master1 to worker1
+- Start master1 and worker1
+
+---
+
+### 2.2 Config Network Adapter master1 (Master1 Only)
+
+- Go to VM Settings
+- Select Network menu
+  - Adapter 1
+    - Attached to: `Bridged Network`
+    - Name: `en0: WiFi`
+  - Adapter 2
+    - Enabel Network Adapter
+    - Attached to: `Internal Network`
+    - Name: `WUNCANet`
+- Click `OK` button
+- Start VM
+
+### config network ip address for master1
+
+```bash
+ip addr
+sudo ifconfig enp0s9 up
+sudo vi /etc/netplan/50-cloud-init.yaml
+```
+
+```yaml
+network:
+  ethernets:
+    enp0s8:
+      addresses: [10.3.4.150/22]
+      routes:
+        - to: default
+          via: 10.3.7.254
+      nameservers:
+        search: [local]
+        addresses: [192.168.2.153]
+      dhcp4: false
+    enp0s9:
+      addresses: [10.0.2.4/24]
+      nameservers:
+        search: [local]
+        addresses: [8.8.8.8, 8.8.8.4]
+      dhcp4: false
+  version: 2
+```
+
+```bash
+sudo netplan apply
+ifconfig enp0s8
+```
+
+### add route to host matchne
+
+```bash
+sudo route add -net 10.0.2.0/24 10.3.0.149
+```
+
+### Enable IP Forwarding and s-nat
+
+```bash
+echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward && \
+sudo sh -c "echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf" && \
+sudo sysctl -p
+
+sudo iptables -t nat -L -nv
+sudo iptables -t nat -A POSTROUTING -o enp0s8 -j MASQUERADE
+```
+
+---
+
+### 2.3 Config Network Adapter worker1 (Worker1 Only)
+
+- Go to VM Settings
+- Select Network menu
+  - Adapter 1
+    - Attached to: `Internal Network`
+    - Name: `WUNCANet`
+- Click `OK` button
+- Start VM
+
+### config network ip address for worker1
 
 ```bash
 sudo vi /etc/netplan/50-cloud-init.yaml
@@ -105,35 +177,23 @@ sudo vi /etc/netplan/50-cloud-init.yaml
 network:
   ethernets:
     enp0s8:
-      addresses: [10.0.2.4/24]
+      addresses: [10.0.2.5/24]
       routes:
         - to: default
-          via: 10.0.2.1
+          via: 10.0.2.4
           metric: 100
       nameservers:
         search: [local]
-        addresses: [10.0.2.1, 8.8.8.8, 8.8.8.4]
-  dhcp4: false
-version: 2
+        addresses: [8.8.8.8, 8.8.8.4]
+      dhcp4: false
+  version: 2
 ```
-
-### apply network config and turn off VM
 
 ```bash
 sudo netplan apply
-sudo init 0
 ```
 
-### Change VM Network Adapter from `NAT` to `NAT Network`
-
-- Go to VM Settings
-- Select Network menu
-- Change Attached to: `NAT Network`
-- Change Name: `NatNetwork`
-- Click `OK` button
-- Start VM
-
-### Install programs
+### 2.4 Install programs (master1 and worker1)
 
 ```bash
 sudo apt update && \
@@ -145,7 +205,9 @@ sudo apt install gcc make perl build-essential bzip2 tar apt-transport-https ca-
 
 ```bash
 sudo swapoff -a && \
-sudo sed -i '/ swap / s/^\(.\*\)$/#\1/g' /etc/fstab
+sudo sed -i '/swap/ s/^/#/' /etc/fstab && \
+sudo rm -f /swap.img && \
+systemctl disable swap.target
 ```
 
 ### Configure Ubuntu 24.04 enable kernel modules
@@ -204,8 +266,6 @@ sudo vi /etc/containerd/config.toml
 ```
 
 ```yaml
-[plugins."io.containerd.grpc.v1.cri".containerd]
-  snapshotter = "overlayfs"
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
   SystemdCgroup = true
 ```
@@ -216,28 +276,24 @@ sudo systemctl enable containerd && \
 systemctl status containerd
 ```
 
-### Enable IP Forwarding
-
-```bash
-echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward && \
-sudo sh -c "echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf" && \
-sudo sysctl -p
-```
-
 ### Install crictl
 
 ```bash
-wget https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.32.0/crictl-v1.32.0-linux-arm64.tar.gz
+wget https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.32.0/crictl-v1.32.0-linux-$(dpkg --print-architecture).tar.gz
 
-sudo tar zxvf crictl-v1.32.0-linux-arm64.tar.gz -C /usr/local/bin
+sudo tar zxvf crictl-v1.32.0-linux-$(dpkg --print-architecture).tar.gz -C /usr/local/bin
 
-rm -f crictl-v1.32.0-linux-arm64.tar.gz
+rm -f crictl-v1.32.0-linux-$(dpkg --print-architecture).tar.gz
 ```
 
 ### Validate Containerd and IP Forwarding
 
 ```bash
 sudo crictl info
+crictl images
+crictl ps
+crictl pods
+crictl stats
 cat /proc/sys/net/ipv4/ip_forward
 ```
 
@@ -267,6 +323,21 @@ sudo /media/VBoxLinuxAdditions-arm64.run
 
 ```bash
 sudo init 0
+```
+
+### 2.5 Change master node ip address to 10.3.4.150/22
+
+```bash
+sudo vi /etc/netplan/50-cloud-init.yaml
+sudo vi ~/.kube/config
+sudo vi /etc/kubernetes/admin.conf
+sudo vi /etc/kubernetes/manifests/kube-apiserver.yaml
+
+kubectl edit cm -n kube-system calico-config
+
+sudo systemctl restart kubelet
+
+kubectl config set-cluster kubernetes --server=https://10.3.4.150:6443
 ```
 
 <a id="step3"></a>
@@ -330,7 +401,7 @@ sudo init 0
 ### Initialize control-plane node
 
 ```bash
-sudo kubeadm init --pod-network-cidr=192.168.0.0/16 --cri-socket=/var/run/containerd/containerd.sock --v=5
+sudo kubeadm init --server=https://10.0.2.4:6443 --pod-network-cidr=192.168.0.0/16 --cri-socket=/var/run/containerd/containerd.sock --v=5
 
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
