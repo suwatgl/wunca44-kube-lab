@@ -116,7 +116,7 @@ sudo vi /etc/netplan/50-cloud-init.yaml
 network:
   ethernets:
     enp0s8:
-      addresses: [10.3.4.150/22]
+      addresses: [10.3.4.150/24]
       routes:
         - to: default
           via: 10.3.7.254
@@ -206,7 +206,7 @@ sudo apt install gcc make perl build-essential bzip2 tar apt-transport-https ca-
 ```bash
 sudo swapoff -a && \
 sudo sed -i '/swap/ s/^/#/' /etc/fstab && \
-sudo rm -f /swap.img && \
+sudo rm -f /swap.img
 systemctl disable swap.target
 ```
 
@@ -286,15 +286,30 @@ sudo tar zxvf crictl-v1.32.0-linux-$(dpkg --print-architecture).tar.gz -C /usr/l
 rm -f crictl-v1.32.0-linux-$(dpkg --print-architecture).tar.gz
 ```
 
+```bash
+sudo vi /etc/crictl.yaml
+```
+
+```bash
+runtime-endpoint: unix:///run/containerd/containerd.sock
+image-endpoint: unix:///run/containerd/containerd.sock
+timeout: 10
+debug: false
+```
+
+```bash
+sudo systemctl restart containerd
+sudo systemctl status containerd
+```
+
 ### Validate Containerd and IP Forwarding
 
 ```bash
 sudo crictl info
-crictl images
-crictl ps
-crictl pods
-crictl stats
-cat /proc/sys/net/ipv4/ip_forward
+sudo crictl images
+sudo crictl ps
+sudo crictl pods
+sudo crictl stats
 ```
 
 ### Install Kubeadm, Kubectl and Kubelet
