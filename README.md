@@ -116,7 +116,7 @@ sudo vi /etc/netplan/50-cloud-init.yaml
 network:
   ethernets:
     enp0s8:
-      addresses: [10.3.4.150/24]
+      addresses: [10.3.4.150/22]
       routes:
         - to: default
           via: 10.3.7.254
@@ -141,7 +141,10 @@ ifconfig enp0s8
 ### add route to host matchne
 
 ```bash
-sudo route add -net 10.0.2.0/24 10.3.0.149
+netstat -rn -f inet
+sudo route delete 10.0.2.0/24
+sudo route add -net 10.0.2.0/24 10.3.4.150
+netstat -rn -f inet
 ```
 
 ### Enable IP Forwarding and s-nat
@@ -152,7 +155,7 @@ sudo sh -c "echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf" && \
 sudo sysctl -p
 
 sudo iptables -t nat -L -nv
-sudo iptables -t nat -A POSTROUTING -o enp0s8 -j MASQUERADE
+sudo iptables -t nat -A POSTROUTING -o enp0s8 -s 10.0.2.0/24 -j MASQUERADE
 ```
 
 ---
@@ -168,6 +171,15 @@ sudo iptables -t nat -A POSTROUTING -o enp0s8 -j MASQUERADE
 - Start VM
 
 ### config network ip address for worker1
+
+```bash
+sudo hostnamectl set-hostname worker1
+sudo vi /etc/hostname
+```
+
+```bash
+worker1
+```
 
 ```bash
 sudo vi /etc/netplan/50-cloud-init.yaml
@@ -206,7 +218,7 @@ sudo apt install gcc make perl build-essential bzip2 tar apt-transport-https ca-
 ```bash
 sudo swapoff -a && \
 sudo sed -i '/swap/ s/^/#/' /etc/fstab && \
-sudo rm -f /swap.img
+sudo rm -f /swap.img && \
 systemctl disable swap.target
 ```
 
@@ -340,7 +352,7 @@ sudo /media/VBoxLinuxAdditions-arm64.run
 sudo init 0
 ```
 
-### 2.5 Change master node ip address to 10.3.4.150/22
+### 2.5 Change master node ip address to 10.3.4.150/22 (Option)
 
 ```bash
 sudo vi /etc/netplan/50-cloud-init.yaml
@@ -416,7 +428,7 @@ sudo init 0
 ### Initialize control-plane node
 
 ```bash
-sudo kubeadm init --server=https://10.0.2.4:6443 --pod-network-cidr=192.168.0.0/16 --cri-socket=/var/run/containerd/containerd.sock --v=5
+sudo kubeadm init --control-plane-endpoint=10.0.2.4:6443 --pod-network-cidr=192.168.0.0/16 --cri-socket=/var/run/containerd/containerd.sock --v=5
 
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
@@ -441,8 +453,8 @@ nc 127.0.0.1 6443 -v
 ## Step 5. Join with kubernetes cluster (All Worker Nodes)
 
 ```bash
-kubeadm join 10.0.2.4:6443 --token tr5tga.1zh2ggq5hjmrbw20 \
- --discovery-token-ca-cert-hash sha256:474f33595720b9327d581dbbfa728024802ea4cb7cbe144218b7c326075548aa
+kubeadm join 10.0.2.4:6443 --token swhc9a.re6z9m0eewu4h4nw \
+ --discovery-token-ca-cert-hash sha256:34cf4ebd226509921597bc2a718c9d56ba0d4e60f388a31ae1770705576983ae
 ```
 
 ### Check nodes and pods on Master node
