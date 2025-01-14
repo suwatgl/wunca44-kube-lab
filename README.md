@@ -19,6 +19,8 @@
 
 ## Network diagram
 
+![Network Diagram](https://github.com/suwatgl/wunca44-kube-lab/blob/main/images/NetworkDiagram.png?raw=true)
+
 ```text
                     10.0.2.5
                   +----+
@@ -38,13 +40,13 @@
 
 ## Virtual Machines (1 Master, 3 Workers)
 
-| Server Role | Host Name | Configuration         | Network Adapter  | IP Address |
-| ----------- | --------- | --------------------- | ---------------- | ---------- |
-| Master Node | Master01  | 4GB Ram, 4vcpus, 20GB | Bridged Adapter  | DHCP       |
-|             |           |                       | Internal Newtork | 10.0.2.4   |
-| Worker Node | Worker01  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.5   |
-| Worker Node | Worker02  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.6   |
-| Worker Node | Worker03  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.7   |
+| Server Role | Host Name | Configuration         | Network Adapter  | IP Address   |
+| ----------- | --------- | --------------------- | ---------------- | ------------ |
+| Master Node | Master01  | 4GB Ram, 4vcpus, 20GB | Bridged Adapter  | 192.168.1.yy |
+|             |           |                       | Internal Newtork | 10.0.2.4     |
+| Worker Node | Worker01  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.5     |
+| Worker Node | Worker02  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.6     |
+| Worker Node | Worker03  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.7     |
 
 ## Software
 
@@ -96,35 +98,41 @@ sudo init 0
 - Select Network menu
   - Adapter 1
     - Attached to: `Bridged Network`
-    - Name: `en0: WiFi`
+    - Name: `en0: WiFi` (Interface ที่เชื่อมต่อกับ Internet)
   - Adapter 2
     - Enabel Network Adapter
     - Attached to: `Internal Network`
-    - Name: `WUNCANet`
+    - Name: `WUNCANet` (ตั้งชื่อ Internal Network ใหม่เพื่อใช้สื่อสารใน Cluster)
 - Click `OK` button
 - Start VM
 
 ### config network ip address for master1
 
 ```bash
+# ตรวจสอบ Interface ที่มีอยู่ใน MV
 ip addr
+ifconfig
+
+# ทำการ Up Interface ที่ยังไม่เห็นจากคำสั่ง ifconfig
 sudo ifconfig enp0s9 up
+
+# แก้ไขค่าของ Network Interfaces ทั้ง 2 
 sudo vi /etc/netplan/50-cloud-init.yaml
 ```
 
 ```yaml
 network:
   ethernets:
-    enp0s8:
-      addresses: [10.3.4.150/22]
+    enp0s8:  # Interface ที่เป็น Bridged Adapter
+      addresses: [192.168.x.yy/24] # Ip ที่อยู่ใน Network เดียวกันกับเครื่อง Host
       routes:
         - to: default
-          via: 10.3.7.254
+          via: 192.168.x.254
       nameservers:
         search: [local]
-        addresses: [192.168.2.153]
+        addresses: [192.168.2.153] # Ip ของ DNS Server
       dhcp4: false
-    enp0s9:
+    enp0s9:  # Interface ที่เป็น Internal Network
       addresses: [10.0.2.4/24]
       nameservers:
         search: [local]
@@ -138,22 +146,31 @@ sudo netplan apply
 ifconfig enp0s8
 ```
 
-### add route to host matchne
+### เพิ่ม Routing table `ในเครื่อง Host` ให้สามารถติดต่อกับ VM ที่อยู่ใน Internal Network ได้
 
 ```bash
+# สำหรับ MacOS ==================
 netstat -rn -f inet
-sudo route delete 10.0.2.0/24
-sudo route add -net 10.0.2.0/24 10.3.4.150
+sudo route delete 10.0.2.0/24  # ถ้ามีอยู่แล้ว ให้ลบทิ้งก่อน
+sudo route add -net 10.0.2.0/24 192.168.x.yy  # Ip ของ Bridged Adapter
 netstat -rn -f inet
+
+# สำหรับ Windows =================
+route print
+route delete 10.0.2.0  # ถ้ามีอยู่แล้ว ให้ลบทิ้งก่อน
+route add 10.0.2.0 MASK 255.255.255.0 192.168.x.yy # Ip ของ Bridged Adapter
+route print
 ```
 
 ### Enable IP Forwarding and s-nat
 
 ```bash
+# ให้ VM master1 สามารถทำ ip forward ได้
 echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward && \
 sudo sh -c "echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf" && \
 sudo sysctl -p
 
+# สำหรับทุก package ที่มาจาก network 10.0.2.0/24 ให้ทำการ Masquerade หลังออกไป (ที่ Interface Internal Network ของ VM master1)
 sudo iptables -t nat -L -nv
 sudo iptables -t nat -A POSTROUTING -o enp0s8 -s 10.0.2.0/24 -j MASQUERADE
 ```
@@ -166,14 +183,17 @@ sudo iptables -t nat -A POSTROUTING -o enp0s8 -s 10.0.2.0/24 -j MASQUERADE
 - Select Network menu
   - Adapter 1
     - Attached to: `Internal Network`
-    - Name: `WUNCANet`
+    - Name: `WUNCANet` (ใช้ชื่อเดียวกันกับ Internal Network ของ VM master1)
 - Click `OK` button
 - Start VM
 
 ### config network ip address for worker1
 
 ```bash
+# เปลี่ยนชื่อ ของ VM ให้เป็น worker1
 sudo hostnamectl set-hostname worker1
+
+# แก้ไขไฟล์ hostname ให้เป็น worker1
 sudo vi /etc/hostname
 ```
 
@@ -182,13 +202,14 @@ worker1
 ```
 
 ```bash
+# แก้ไขค่าของ Network Interface ของ VM worker1
 sudo vi /etc/netplan/50-cloud-init.yaml
 ```
 
 ```yaml
 network:
   ethernets:
-    enp0s8:
+    enp0s8:  # Interface ที่เป็น Internal Network
       addresses: [10.0.2.5/24]
       routes:
         - to: default
@@ -203,11 +224,13 @@ network:
 
 ```bash
 sudo netplan apply
+ifconfig enp0s8
 ```
 
 ### 2.4 Install programs (master1 and worker1)
 
 ```bash
+# ติดตั้ง Programs ที่จำเป็นต้องใช้ใน VM master1 และ work1
 sudo apt update && \
 sudo apt upgrade -y && \
 sudo apt install gcc make perl build-essential bzip2 tar apt-transport-https ca-certificates curl gpg -y
@@ -339,47 +362,30 @@ sudo apt-mark hold kubelet kubeadm kubectl && \
 sudo systemctl enable --now kubelet
 ```
 
-### install VBox Guest Additions (Optional)
-
-```bash
-sudo mount /dev/cdrom /media
-sudo /media/VBoxLinuxAdditions-arm64.run
-```
-
-### Turn off VM
+### Turn off เฉพาะ VM worker1 เพื่อทำการ Clone ไปเป็น worker2 และ worker3
 
 ```bash
 sudo init 0
-```
-
-### 2.5 Change master node ip address to 10.3.4.150/22 (Option)
-
-```bash
-sudo vi /etc/netplan/50-cloud-init.yaml
-sudo vi ~/.kube/config
-sudo vi /etc/kubernetes/admin.conf
-sudo vi /etc/kubernetes/manifests/kube-apiserver.yaml
-
-kubectl edit cm -n kube-system calico-config
-
-sudo systemctl restart kubelet
-
-kubectl config set-cluster kubernetes --server=https://10.3.4.150:6443
 ```
 
 <a id="step3"></a>
 
-## Step 3. Clone Master01 to Worker nodes 01 - 03
+## Step 3. Clone worker1 to worker2 and worker3
 
-### Clone Master01 to Worker01
+### Clone VM worker1 to worker2
 
-#### Change VM Worker01 hostname to `Worker01`
+#### With VM worker2 change hostname `worker1` to `worker2`
 
 ```bash
+sudo hostnamectl set-hostname worker2
 sudo vi /etc/hostname
 ```
 
-#### Change VM Worker01 IP Address to `10.0.2.5` and turn off MV
+```bash
+worker2
+```
+
+#### With VM worker2 change IP Address `10.0.2.5` to `10.0.2.6`
 
 ```bash
 sudo vi /etc/netplan/50-cloud-init.yaml
@@ -387,39 +393,26 @@ sudo netplan apply
 sudo init 0
 ```
 
-### Clone Master01 to Worker02
+### Clone VM worker1 to worker3
 
-#### Change VM Worker02 hostname to `Worker02`
+#### With VM worker3 change hostname `worker1` to `worker3`
 
 ```bash
+sudo hostnamectl set-hostname worker3
 sudo vi /etc/hostname
 ```
 
-#### Change VM Worker02 IP Address to `10.0.2.6` and turn off MV
+```bash
+worker3
+```
+
+#### With VM worker3 change IP Address `10.0.2.5` to `10.0.2.7`
 
 ```bash
 sudo vi /etc/netplan/50-cloud-init.yaml
 sudo netplan apply
 sudo init 0
 ```
-
-### Clone Master01 to Worker03
-
-#### Change VM Worker03 hostname to `Worker03`
-
-```bash
-sudo vi /etc/hostname
-```
-
-#### Change VM Worker03 IP Address to `10.0.2.7` and turn off MV
-
-```bash
-sudo vi /etc/netplan/50-cloud-init.yaml
-sudo netplan apply
-sudo init 0
-```
-
-### Snapshot All VM after config and install programs
 
 <a id="step4"></a>
 
@@ -453,8 +446,8 @@ nc 127.0.0.1 6443 -v
 ## Step 5. Join with kubernetes cluster (All Worker Nodes)
 
 ```bash
-kubeadm join 10.0.2.4:6443 --token swhc9a.re6z9m0eewu4h4nw \
- --discovery-token-ca-cert-hash sha256:34cf4ebd226509921597bc2a718c9d56ba0d4e60f388a31ae1770705576983ae
+sudo kubeadm join 10.0.2.4:6443 --token xxxxx.yyyyyyyyyyyyyyyy \
+ --discovery-token-ca-cert-hash sha256:xyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyx
 ```
 
 ### Check nodes and pods on Master node
@@ -493,24 +486,7 @@ helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
 
 helm upgrade --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard --create-namespace --namespace kubernetes-dashboard
 
-kubectl -n kubernetes-dashboard port-forward --address 0.0.0.0 svc/kubernetes-dashboard-kong-proxy 8443:443
-
 kubectl -n kubernetes-dashboard get svc -o wide
-```
-
-### Install screen
-
-```bash
-sudo apt-get install screen
-screen -S kubernetes-dashboard
-# Ctrl+A and Ctrl+D for Exit screen
-screen -dr kubernetes-dashboard
-```
-
-#### Port forwarding for kubernetes-dashboard
-
-```bash
-kubectl -n kubernetes-dashboard port-forward --address 0.0.0.0 svc/kubernetes-dashboard-kong-proxy 8443:443
 ```
 
 #### Creating sample user
@@ -560,6 +536,21 @@ kubectl apply -f cluster-role.yaml
 
 ```bash
 kubectl -n kubernetes-dashboard create token admin-user
+```
+
+### Install screen
+
+```bash
+sudo apt-get install screen
+screen -S kubernetes-dashboard
+# Ctrl+A and Ctrl+D for Exit screen
+screen -dr kubernetes-dashboard
+```
+
+#### Port forwarding for kubernetes-dashboard
+
+```bash
+kubectl -n kubernetes-dashboard port-forward --address 0.0.0.0 svc/kubernetes-dashboard-kong-proxy 8443:443
 ```
 
 #### Access dashboard
@@ -612,16 +603,6 @@ kubectl get svc nginx-gateway -n nginx-gateway
 kubectl patch svc nginx-gateway -n nginx-gateway -p '{"spec": {"externalIPs": ["10.0.2.4"]}}'
 
 kubectl get svc nginx-gateway -n nginx-gateway -o wide
-```
-
-```bash
-git clone -b release-1.5 https://github.com/nginxinc/nginx-gateway-fabric.git
-
-kubectl apply -f https://github.com/nginxinc/nginx-kubernetes-gateway/releases/latest/download/deploy.yaml
-
-kubectl get pods -n nginx-gateway
-kubectl get crds | grep gateway
-kubectl get gateway,httproute
 ```
 
 ### Upgrade Gateway API resources
