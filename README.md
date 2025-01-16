@@ -21,23 +21,6 @@
 
 ![Network Diagram](https://github.com/suwatgl/wunca44-kube-lab/blob/main/images/NetworkDiagram.png?raw=true)
 
-```text
-                    10.0.2.5
-                  +----+
-                  | W1 |
-                  +----+
-                   /
-         10.0.2.4 /           10.0.2.6
-               +----+       +----+
-   ----------- | M1 | ----- | W2 |
-               +----+       +----+
-                  \
-                   \ 10.0.2.7
-                  +----+
-                  | W3 |
-                  +----+
-```
-
 ## Virtual Machines (1 Master, 3 Workers)
 
 | Server Role | Host Name | Configuration         | Network Adapter  | IP Address   |
@@ -74,7 +57,7 @@
 
 <a id="step2"></a>
 
-## Step 2. Create VM (Master01) and Install Ubuntu 24.04 LTS Server
+## Step 2. Create VM master1 and Install Ubuntu 24.04 LTS Server
 
 ### 2.1 Update Upgrade package and clone master1 to worker1
 
@@ -538,25 +521,16 @@ kubectl apply -f cluster-role.yaml
 kubectl -n kubernetes-dashboard create token admin-user
 ```
 
-### Install screen
-
-```bash
-sudo apt-get install screen
-screen -S kubernetes-dashboard
-# Ctrl+A and Ctrl+D for Exit screen
-screen -dr kubernetes-dashboard
-```
-
 #### Port forwarding for kubernetes-dashboard
 
 ```bash
-kubectl -n kubernetes-dashboard port-forward --address 0.0.0.0 svc/kubernetes-dashboard-kong-proxy 8443:443
+kubectl -n kubernetes-dashboard port-forward --address 0.0.0.0 svc/kubernetes-dashboard-kong-proxy 8443:443 > /dev/null 2>&1
 ```
 
 #### Access dashboard
 
 ```html
-https://localhost:8443
+https://10.0.2.4:8443
 ```
 
 <a id="step8"></a>
@@ -677,3 +651,39 @@ Server name: tea-7cd44fcb4d-xfw2x
 kubectl get pods -n nginx-gateway
 kubectl exec -it -n nginx-gateway nginx-gateway-964449b44-c45f4 -c nginx -- nginx -T
 ```
+
+## Reference
+
+### [Kubernetes Cluster Setup on Ubuntu 24.04 LTS Server](https://medium.com/@rabbi.cse.sust.bd/kubernetes-cluster-setup-on-ubuntu-24-04-lts-server-c17be85e49d1)
+
+![Kubernetes Cluster](https://miro.medium.com/v2/resize:fit:1152/format:webp/1*LHHLfa8lCvKM5bkiKbjKMw.png)
+
+---
+
+### [Gateway API คือขั้นกว่าของการทำ Ingress บน Kubernetes](https://dev.to/terngr/gateway-api-khuuekhankwaakhngkaartham-ingress-bn-kubernetes-10nl)
+
+![Gateway API](https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Flvvcmasrx4pal6tvjdwp.png)
+
+---
+
+[Kubernetes Best Practices ที่ทุกคนควรรู้ EP.1](https://developers.ascendcorp.com/kubernetes-best-practices-%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%84%E0%B8%99%E0%B8%84%E0%B8%A7%E0%B8%A3%E0%B8%A3%E0%B8%B9%E0%B9%89-ep-1-29767c8a18f0)
+
+![EP.1](https://miro.medium.com/v2/resize:fit:1282/format:webp/1*KAMyMBkEya34Qsg0_tTsOA.png)
+
+---
+
+### [Kubernetes Best Practices ที่ทุกคนควรรู้ EP.2](https://developers.ascendcorp.com/kubernetes-best-practices-%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%84%E0%B8%99%E0%B8%84%E0%B8%A7%E0%B8%A3%E0%B8%A3%E0%B8%B9%E0%B9%89-ep-2-c2e0d3fa78a1)
+
+![EP.2](https://miro.medium.com/v2/resize:fit:1282/format:webp/1*PpUz_60FYIN3B0KyCrrVog.png)
+
+---
+
+### [Kubernetes Best Practices ที่ทุกคนควรรู้ EP.3 (End)](https://developers.ascendcorp.com/kubernetes-best-practices-%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%84%E0%B8%99%E0%B8%84%E0%B8%A7%E0%B8%A3%E0%B8%A3%E0%B8%B9%E0%B9%89-ep-3-end-ebdaef4d82b4)
+
+![EP.3](https://miro.medium.com/v2/resize:fit:1284/format:webp/1*EE3tD9CbHIJUjhOEBYRr5A.png)
+
+---
+
+### [Kubernetes คือ อะไร ? หนทางสู่การทำระบบให้แกร่งกว่าที่เคย !](https://blog.openlandscape.cloud/what-is-kubernetesf)
+
+![Kubernetes คือ อะไร](https://blog.openlandscape.cloud/_next/image?url=https%3A%2F%2Fblog-wp.openlandscape.cloud%2Fwhat-is-kubernetes%2Fkubernetes_fb_1%2F&w=3840&q=75)
