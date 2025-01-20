@@ -44,7 +44,7 @@
 | kubernetes                | 1.32.0    | [https://kubernetes.io/releases/download/](https://kubernetes.io/releases/download/)          |
 | calico                    | 3.29.1    | [https://github.com/projectcalico/calico](https://github.com/projectcalico/calico)           |
 | helm                      | 3.16.3    | [https://helm.sh/docs/intro/install/](https://helm.sh/docs/intro/install/)               |
-| Nginx Gateway Fabric      | 1.5.1     | [https://github.com/nginx/nginx-gateway-fabric](https://github.com/nginx/nginx-gateway-fabric)     |
+| Nginx Gateway Fabric      | 1.6.0     | [https://github.com/nginx/nginx-gateway-fabric](https://github.com/nginx/nginx-gateway-fabric)     |
 
 <a id="step1"></a>
 
@@ -302,21 +302,15 @@ wget https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.32.0/cric
 sudo tar zxvf crictl-v1.32.0-linux-$(dpkg --print-architecture).tar.gz -C /usr/local/bin
 
 rm -f crictl-v1.32.0-linux-$(dpkg --print-architecture).tar.gz
-```
 
-```bash
-sudo vi /etc/crictl.yaml
-```
-
-```bash
+sudo tee /etc/crictl.yaml <<EOF
 runtime-endpoint: unix:///run/containerd/containerd.sock
 image-endpoint: unix:///run/containerd/containerd.sock
 timeout: 10
 debug: false
-```
+EOF
 
-```bash
-sudo systemctl restart containerd
+sudo systemctl restart containerd && \
 sudo systemctl status containerd
 ```
 
@@ -406,10 +400,10 @@ sudo init 0
 ```bash
 sudo kubeadm init --control-plane-endpoint=10.0.2.4:6443 --pod-network-cidr=192.168.0.0/16 --cri-socket=/var/run/containerd/containerd.sock --v=5
 
-mkdir -p $HOME/.kube
-sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-sudo chown $(id -u):$(id -g) $HOME/.kube/config
-export KUBECONFIG=/etc/kubernetes/admin.conf
+mkdir -p $HOME/.kube && \
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config && \
+sudo chown $(id -u):$(id -g) $HOME/.kube/config && \
+export KUBECONFIG=/etc/kubernetes/admin.conf && \
 sudo chmod -R 755 /etc/kubernetes/admin.conf
 ```
 
@@ -451,7 +445,7 @@ sudo apt-get install apt-transport-https --yes
 
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
 
-sudo apt-get update
+sudo apt-get update && \
 sudo apt-get install helm
 ```
 
@@ -524,7 +518,7 @@ kubectl -n kubernetes-dashboard create token admin-user
 #### Port forwarding for kubernetes-dashboard
 
 ```bash
-kubectl -n kubernetes-dashboard port-forward --address 0.0.0.0 svc/kubernetes-dashboard-kong-proxy 8443:443 > /dev/null 2>&1
+kubectl -n kubernetes-dashboard port-forward --address 0.0.0.0 svc/kubernetes-dashboard-kong-proxy 8443:443 > /dev/null &
 ```
 
 #### Access dashboard
@@ -542,19 +536,19 @@ https://10.0.2.4:8443
 #### 1. Install the Gateway API resources
 
 ```bash
-kubectl kustomize "https://github.com/nginxinc/nginx-gateway-fabric/config/crd/gateway-api/standard?ref=v1.5.1" | kubectl apply -f -
+kubectl kustomize "https://github.com/nginx/nginx-gateway-fabric/config/crd/gateway-api/standard?ref=v1.6.0" | kubectl apply -f -
 ```
 
 #### 2. Deploy the NGINX Gateway Fabric CRDs
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/nginxinc/nginx-gateway-fabric/v1.5.1/deploy/crds.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/nginx-gateway-fabric/v1.6.0/deploy/crds.yaml
 ```
 
 #### 3. Deploy NGINX Gateway Fabric
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/nginxinc/nginx-gateway-fabric/v1.5.1/deploy/default/deploy.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/nginx-gateway-fabric/v1.6.0/deploy/default/deploy.yaml
 ```
 
 #### 4. Verify the Deployment
@@ -574,36 +568,26 @@ kubectl get svc nginx-gateway -n nginx-gateway
 ##### Patch nginx-gateway service for assign external ip
 
 ```bash
-kubectl patch svc nginx-gateway -n nginx-gateway -p '{"spec": {"externalIPs": ["10.0.2.4"]}}'
+kubectl patch svc nginx-gateway -n nginx-gateway -p '{"spec": {"externalIPs": ["10.0.2.4"], "externalTrafficPolicy": "Cluster"}}'
 
-kubectl get svc nginx-gateway -n nginx-gateway -o wide
-```
-
-### Upgrade Gateway API resources
-
-```bash
-kubectl kustomize "https://github.com/nginxinc/nginx-gateway-fabric/config/crd/gateway-api/standard?ref=v1.5.1" | kubectl apply -f -
-```
-
-### Upgrade NGINX Gateway Fabric CRDs
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/nginxinc/nginx-gateway-fabric/v1.5.1/deploy/crds.yaml
+kubectl get svc nginx-gateway -n nginx-gateway -o json
+kubectl describe svc nginx-gateway -n nginx-gateway
 ```
 
 <a id="step9"></a>
 
 ## Step 9. Deploy example site
 
-### Clone Nginx Gateway Fabric from github
+### 9.1 Clone Nginx Gateway Fabric from github
 
 ```bash
 cd namespace
-git clone -b release-1.5 https://github.com/nginxinc/nginx-gateway-fabric.git
+git clone -b release-1.6 https://github.com/nginx/nginx-gateway-fabric.git
 cd nginx-gateway-fabric
 ```
+---
 
-### Go to cafe-example
+### 9.2 cafe-example
 
 ```bash
 cd examples/cafe-example
@@ -650,6 +634,55 @@ Server name: tea-7cd44fcb4d-xfw2x
 ```bash
 kubectl get pods -n nginx-gateway
 kubectl exec -it -n nginx-gateway nginx-gateway-964449b44-c45f4 -c nginx -- nginx -T
+```
+
+---
+
+### 9.3 https-termination
+
+```bash
+cd examples/https-termination
+```
+
+#### Create the coffee and the tea Deployments and Services
+
+```bash
+kubectl apply -f cafe.yaml
+```
+
+#### Create the Namespace certificate and a Secret with a TLS certificate and key
+
+```bash
+kubectl apply -f certificate-ns-and-cafe-secret.yaml
+kubectl apply -f reference-grant.yaml
+kubectl apply -f gateway.yaml
+kubectl apply -f cafe-routes.yaml
+```
+
+#### Test HTTPS Redirect
+
+```bash
+curl --resolve cafe.example.com:80:10.0.2.4 http://cafe.example.com:80/coffee --include
+
+curl --resolve cafe.example.com:80:10.0.2.4 http://cafe.example.com:80/tea --include
+```
+
+#### Access Coffee and Tea
+
+```bash
+curl --resolve cafe.example.com:443:10.0.2.4 https://cafe.example.com:443/coffee --insecure
+
+curl --resolve cafe.example.com:443:10.0.2.4 https://cafe.example.com:443/tea --insecure
+```
+
+#### Remove the ReferenceGrant
+
+```bash
+kubectl delete -f reference-grant.yaml
+
+curl --resolve cafe.example.com:443:10.0.2.4 https://cafe.example.com:443/coffee --insecure -vvv
+
+ kubectl describe gateway gateway
 ```
 
 ## Reference
