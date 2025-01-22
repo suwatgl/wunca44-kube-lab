@@ -1,4 +1,4 @@
-# Kubernetes Setup on Oracle Virtualbox v7.1.4
+# Kubernetes Setup on Oracle Virtualbox v7.1.6
 
 ## Content
 
@@ -15,7 +15,9 @@
 - [Step 7. Install Kubernetes Dashboard](#step7)
 - [Step 8. Install NGINX Gateway Fabric](#step8)
 - [Step 9. Deploy example site](#step9)
--
+  - 9.1 cafe-example (http)
+  - 9.2 https-termination (https)
+- [Step 10. Horizontal Pod Autoscaler](#step10)
 
 ## Network diagram
 
@@ -35,9 +37,9 @@
 
 | Software Name             | Version   | Reference                                         |
 | ------------------------- | --------- | ------------------------------------------------- |
-| Virtualbox                | 7.1.4     | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.4/) |
-| VirtualBox Extension Pack | 7.1.4     | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.4/) |
-| VboxGuestAdditions        | 7.1.4     | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.4/) |
+| Virtualbox                | 7.1.6     | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.6/) |
+| VirtualBox Extension Pack | 7.1.6     | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.6/) |
+| VboxGuestAdditions        | 7.1.6     | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.6/) |
 | Ubuntu Server             | 24.04 LTS | [https://ubuntu.com](https://ubuntu.com/download/server)                |
 | containerd.io             | 1.7.24    | [https://github.com/containerd/containerd](https://github.com/containerd/containerd)          |
 | crictl                    | 1.32.0    | [https://github.com/kubernetes-sigs/cri-tools](https://github.com/kubernetes-sigs/cri-tools)      |
@@ -45,13 +47,14 @@
 | calico                    | 3.29.1    | [https://github.com/projectcalico/calico](https://github.com/projectcalico/calico)           |
 | helm                      | 3.16.3    | [https://helm.sh/docs/intro/install/](https://helm.sh/docs/intro/install/)               |
 | Nginx Gateway Fabric      | 1.6.0     | [https://github.com/nginx/nginx-gateway-fabric](https://github.com/nginx/nginx-gateway-fabric)     |
+| Metrics Server             | 0.7.2     | [https://github.com/kubernetes-sigs/metrics-server](https://github.com/kubernetes-sigs/metrics-server/releases)   |
 
 <a id="step1"></a>
 
 ## Step 1. Setup Virtualbox ENV
 
 - Install Oracle VirtualBox Extension Pack
-  - Oracle_VirtualBox_Extension_Pack-7.1.4-165100.vbox-extpack
+  - Oracle_VirtualBox_Extension_Pack-7.1.6-165100.vbox-extpack
 - Add optical disk
   - ubuntu-24.04.1-live-server-arm64.iso
 
@@ -68,6 +71,17 @@ sudo apt install net-tools network-manager ssh iproute2 iptables inetutils-ping 
 sudo systemctl enable ssh
 
 sudo init 0
+```
+
+#### Install Virtualbox Guest Additions (Optional)
+
+```bash
+sudo apt install -y build-essential dkms linux-headers-$(uname -r)
+
+# Insert VBoxGuestAdditions.iso CD file into Linux guest's CD-ROM drive and mount it.
+sudo mount /dev/cdrom /media
+cd /media
+sudo ./VBoxLinuxAdditions.run
 ```
 
 - Clone master1 to worker1
@@ -398,7 +412,13 @@ sudo init 0
 ### Initialize control-plane node
 
 ```bash
-sudo kubeadm init --control-plane-endpoint=10.0.2.4:6443 --pod-network-cidr=192.168.0.0/16 --cri-socket=/var/run/containerd/containerd.sock --v=5
+sudo kubeadm init \
+  --apiserver-advertise-address=10.0.2.4 \
+  --apiserver-bind-port=6443 \
+  --control-plane-endpoint=10.0.2.4:6443 \
+  --pod-network-cidr=192.168.0.0/16 \
+  --cri-socket=/var/run/containerd/containerd.sock \
+  --v=5
 
 mkdir -p $HOME/.kube && \
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config && \
@@ -454,9 +474,9 @@ sudo apt-get install helm
 ## Step 7. Install Kubernetes Dashboard (Master Node only)
 
 ```bash
-mkdir namespaces
-cd namespaces
-mkdir kubernetes-dashboard
+mkdir namespaces && \
+cd namespaces && \
+mkdir kubernetes-dashboard && \
 cd kubernetes-dashboard
 
 helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
@@ -469,28 +489,21 @@ kubectl -n kubernetes-dashboard get svc -o wide
 #### Creating sample user
 
 ```bash
-vi dashboard-adminuser.yaml
-```
-
-```yaml
+tee dashboard-adminuser.yaml <<EOF
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: admin-user
   namespace: kubernetes-dashboard
-```
+EOF
 
-```bash
 kubectl apply -f dashboard-adminuser.yaml
 ```
 
 #### Creating a ClusterRoleBinding
 
 ```bash
-vi cluster-role.yaml
-```
-
-```yaml
+tee cluster-role.yaml <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -503,9 +516,8 @@ subjects:
   - kind: ServiceAccount
     name: admin-user
     namespace: kubernetes-dashboard
-```
+EOF
 
-```bash
 kubectl apply -f cluster-role.yaml
 ```
 
@@ -585,6 +597,7 @@ cd namespace
 git clone -b release-1.6 https://github.com/nginx/nginx-gateway-fabric.git
 cd nginx-gateway-fabric
 ```
+
 ---
 
 ### 9.2 cafe-example
@@ -653,9 +666,9 @@ kubectl apply -f cafe.yaml
 #### Create the Namespace certificate and a Secret with a TLS certificate and key
 
 ```bash
-kubectl apply -f certificate-ns-and-cafe-secret.yaml
-kubectl apply -f reference-grant.yaml
-kubectl apply -f gateway.yaml
+kubectl apply -f certificate-ns-and-cafe-secret.yaml && \
+kubectl apply -f reference-grant.yaml && \
+kubectl apply -f gateway.yaml && \
 kubectl apply -f cafe-routes.yaml
 ```
 
@@ -683,6 +696,165 @@ kubectl delete -f reference-grant.yaml
 curl --resolve cafe.example.com:443:10.0.2.4 https://cafe.example.com:443/coffee --insecure -vvv
 
  kubectl describe gateway gateway
+```
+
+<a id="step10"></a>
+
+## Step 10. Horizontal Pod Autoscaler
+
+### Install Metrics Server
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.7.2/components.yaml
+
+kubectl patch deployment metrics-server -n kube-system \
+  --type='json' \
+  -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
+
+# kubectl patch deployment metrics-server -n kube-system \
+#   --type='json' \
+#   -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/args/-", "value": "--metric-resolution=90s"}]'
+
+kubectl get apiservices
+kubectl top nodes
+kubectl top pods
+kubectl top pod my-nginx
+```
+
+### Patch cafe example
+
+```bash
+cd namespaces
+mkdir hpa
+cd hpa
+
+# ------------------------------------
+tee cafe.yaml <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coffee
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coffee
+  template:
+    metadata:
+      labels:
+        app: coffee
+    spec:
+      containers:
+      - name: coffee
+        image: nginxdemos/nginx-hello:plain-text
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            memory: "200Mi"
+            cpu: "200m"
+          requests:
+            memory: "100Mi"
+            cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coffee
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: coffee
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tea
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tea
+  template:
+    metadata:
+      labels:
+        app: tea
+    spec:
+      containers:
+      - name: tea
+        image: nginxdemos/nginx-hello:plain-text
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            memory: "200Mi"
+            cpu: "200m"
+          requests:
+            memory: "100Mi"
+            cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tea
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: tea
+EOF
+
+# ----------------------------------
+
+kubectl apply -f cafe.yaml
+
+kubectl autoscale deployment coffee --cpu-percent=20 --min=1 --max=5
+
+kubectl get hpa coffee --watch
+
+# Load test HPA
+wrk -t10 -c100 -d30s https://cafe.example.com/coffee
+
+# Load test none HPA
+wrk -t10 -c100 -d30s https://cafe.example.com/tea
+
+kubectl get deploy coffee -w
+
+kubectl delete hpa coffee
+```
+
+#### Create hpa.yaml
+
+```bash
+tee hpa.yaml <<EOF
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: coffee
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: coffee
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 20
+EOF
+
+kubectl apply -f hpa.yaml
 ```
 
 ## Reference
