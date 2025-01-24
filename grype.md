@@ -1,3 +1,5 @@
+#Grype 
+
 ```bash
 sudo curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sudo sh -s -- -b /usr/local/bin
 ```
@@ -22,7 +24,7 @@ done
 
 ```
 
-Trivy
+#Trivy
 
 ```bash
 sudo apt install wget gnupg
