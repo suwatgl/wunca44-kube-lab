@@ -27,9 +27,10 @@ done
 #Trivy
 
 ```bash
-sudo apt install wget gnupg
-wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
-sudo apt update
-sudo apt install trivy
+helm repo add aquasecurity https://aquasecurity.github.io/helm-charts
+helm repo update
+helm install trivy aquasecurity/trivy
+```
+```bash
+trivy k8s --report summary
 ```
