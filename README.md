@@ -47,7 +47,7 @@
 | calico                    | 3.29.1    | [https://github.com/projectcalico/calico](https://github.com/projectcalico/calico)           |
 | helm                      | 3.16.3    | [https://helm.sh/docs/intro/install/](https://helm.sh/docs/intro/install/)               |
 | Nginx Gateway Fabric      | 1.6.0     | [https://github.com/nginx/nginx-gateway-fabric](https://github.com/nginx/nginx-gateway-fabric)     |
-| Metrics Server             | 0.7.2     | [https://github.com/kubernetes-sigs/metrics-server](https://github.com/kubernetes-sigs/metrics-server/releases)   |
+| Metrics Server            | 0.7.2     | [https://github.com/kubernetes-sigs/metrics-server](https://github.com/kubernetes-sigs/metrics-server/releases)   |
 
 <a id="step1"></a>
 
@@ -230,7 +230,7 @@ ifconfig enp0s8
 # ติดตั้ง Programs ที่จำเป็นต้องใช้ใน VM master1 และ work1
 sudo apt update && \
 sudo apt upgrade -y && \
-sudo apt install gcc make perl build-essential bzip2 tar apt-transport-https ca-certificates curl gpg -y
+sudo apt install gcc make perl build-essential bzip2 tar apt-transport-https ca-certificates curl gpg git -y
 ```
 
 ### Disable Swap
@@ -434,6 +434,9 @@ kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.1
 
 kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/custom-resources.yaml
 
+# Verify the plugin works.
+kubectl calico -h
+
 watch kubectl get pods -n calico-system
 nc 127.0.0.1 6443 -v
 ```
@@ -486,7 +489,7 @@ helm upgrade --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dash
 kubectl -n kubernetes-dashboard get svc -o wide
 ```
 
-#### Creating sample user
+### Creating sample user
 
 ```bash
 tee dashboard-adminuser.yaml <<EOF
@@ -584,6 +587,27 @@ kubectl patch svc nginx-gateway -n nginx-gateway -p '{"spec": {"externalIPs": ["
 
 kubectl get svc nginx-gateway -n nginx-gateway -o json
 kubectl describe svc nginx-gateway -n nginx-gateway
+```
+
+#### 6. Reference
+
+```bash
+# gatewayClass detail
+kubectl get gatewayclass -A
+kubectl describe gatewayclass nginx
+
+# geteway detail
+kubectl get gateway -A
+kubectl describe gateway gateway
+
+# httproutes detail
+kubectl get httproutes -A
+kubectl describe httproutes
+
+# service detail
+kubectl get svc -A
+kubectl get svc -n nginx-gateway -o wide
+kubectl get svc -n default -o wide
 ```
 
 <a id="step9"></a>
@@ -857,38 +881,60 @@ EOF
 kubectl apply -f hpa.yaml
 ```
 
-## Reference
+## References
 
 ### [Kubernetes Cluster Setup on Ubuntu 24.04 LTS Server](https://medium.com/@rabbi.cse.sust.bd/kubernetes-cluster-setup-on-ubuntu-24-04-lts-server-c17be85e49d1)
 
-![Kubernetes Cluster](https://miro.medium.com/v2/resize:fit:1152/format:webp/1*LHHLfa8lCvKM5bkiKbjKMw.png)
+- Md. Mehedi Hasan
+- May 26, 2024
 
 ---
 
 ### [Gateway API คือขั้นกว่าของการทำ Ingress บน Kubernetes](https://dev.to/terngr/gateway-api-khuuekhankwaakhngkaartham-ingress-bn-kubernetes-10nl)
 
-![Gateway API](https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Flvvcmasrx4pal6tvjdwp.png)
+- terngr
+- Jul 8, 2023
 
 ---
 
-[Kubernetes Best Practices ที่ทุกคนควรรู้ EP.1](https://developers.ascendcorp.com/kubernetes-best-practices-%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%84%E0%B8%99%E0%B8%84%E0%B8%A7%E0%B8%A3%E0%B8%A3%E0%B8%B9%E0%B9%89-ep-1-29767c8a18f0)
+### [Kubernetes Best Practices ที่ทุกคนควรรู้ EP.1](https://developers.ascendcorp.com/kubernetes-best-practices-%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%84%E0%B8%99%E0%B8%84%E0%B8%A7%E0%B8%A3%E0%B8%A3%E0%B8%B9%E0%B9%89-ep-1-29767c8a18f0)
 
-![EP.1](https://miro.medium.com/v2/resize:fit:1282/format:webp/1*KAMyMBkEya34Qsg0_tTsOA.png)
+- Mongkol Thongkraikaew
+- Jan 22, 2023
 
 ---
 
 ### [Kubernetes Best Practices ที่ทุกคนควรรู้ EP.2](https://developers.ascendcorp.com/kubernetes-best-practices-%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%84%E0%B8%99%E0%B8%84%E0%B8%A7%E0%B8%A3%E0%B8%A3%E0%B8%B9%E0%B9%89-ep-2-c2e0d3fa78a1)
 
-![EP.2](https://miro.medium.com/v2/resize:fit:1282/format:webp/1*PpUz_60FYIN3B0KyCrrVog.png)
+- Mongkol Thongkraikaew
+- Jan 30, 2023
 
 ---
 
 ### [Kubernetes Best Practices ที่ทุกคนควรรู้ EP.3 (End)](https://developers.ascendcorp.com/kubernetes-best-practices-%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%84%E0%B8%99%E0%B8%84%E0%B8%A7%E0%B8%A3%E0%B8%A3%E0%B8%B9%E0%B9%89-ep-3-end-ebdaef4d82b4)
 
-![EP.3](https://miro.medium.com/v2/resize:fit:1284/format:webp/1*EE3tD9CbHIJUjhOEBYRr5A.png)
+- Mongkol Thongkraikaew
+- Feb 22, 2023
 
 ---
 
-### [Kubernetes คือ อะไร ? หนทางสู่การทำระบบให้แกร่งกว่าที่เคย !](https://blog.openlandscape.cloud/what-is-kubernetesf)
+### [Kubernetes คือ อะไร ? หนทางสู่การทำระบบให้แกร่งกว่าที่เคย !](https://blog.openlandscape.cloud/what-is-kubernetes)
 
-![Kubernetes คือ อะไร](https://blog.openlandscape.cloud/_next/image?url=https%3A%2F%2Fblog-wp.openlandscape.cloud%2Fwhat-is-kubernetes%2Fkubernetes_fb_1%2F&w=3840&q=75)
+- openlandscape.cloud
+- Nov 2, 2022
+
+---
+
+### [Kubernetes Gateway API คืออะไร? ถึงเวลาใช้แทน Ingress แล้ว](https://nopnithi.com/posts/what-is-kubernetes-gateway-api-time-to-replace-ingress/#concept-%E0%B8%82%E0%B8%AD%E0%B8%87-kubernetes-gateway-api)
+
+- Nopnithi Khaokaew
+- Apr 1, 2024
+
+---
+
+### [What is Gateway API in Kubernetes and How does it differ from Ingress API?](https://medium.com/@kedarnath93/what-is-gateway-api-in-kubernetes-and-how-does-it-differ-from-ingress-api-aa0404d7fc09)
+
+- Kedarnath Grandhe
+- Jul 10, 2024
+
+---
