@@ -25,27 +25,29 @@
 
 ## Virtual Machines (1 Master, 3 Workers)
 
-| Server Role | Host Name | Configuration         | Network Adapter  | IP Address   |
-| ----------- | --------- | --------------------- | ---------------- | ------------ |
-| Master Node | Master01  | 4GB Ram, 4vcpus, 20GB | Bridged Adapter  | 192.168.1.yy |
-|             |           |                       | Internal Newtork | 10.0.2.4     |
-| Worker Node | Worker01  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.5     |
-| Worker Node | Worker02  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.6     |
-| Worker Node | Worker03  | 2GB Ram, 2vcpus, 20GB | Internal Newtork | 10.0.2.7     |
+| Server Role | Host Name | Configuration         | Network Adapter | IP Address   |
+| ----------- | --------- | --------------------- | --------------- | ------------ |
+| Master Node | Master01  | 4GB Ram, 4vcpus, 20GB | Bridged Adapter | 192.168.1.51 |
+| Worker Node | Worker01  | 2GB Ram, 2vcpus, 20GB | Bridged Newtork | 192.168.1.56 |
+| Worker Node | Worker02  | 2GB Ram, 2vcpus, 20GB | Bridged Newtork | 192.168.1.57 |
+| Worker Node | Worker03  | 2GB Ram, 2vcpus, 20GB | Bridged Newtork | 192.168.1.58 |
 
 ## Software
 
-| Software Name             | Version   | Reference                                         |
-| ------------------------- | --------- | ------------------------------------------------- |
-| Virtualbox                | 7.1.12    | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.12/) |
-| Ubuntu Server             | 24.04     | [https://ubuntu.com](https://ubuntu.com/download/server)                |
-| containerd                | 2.1.3     | [https://github.com/containerd/containerd](https://github.com/containerd/containerd/releases)          |
-| crictl                    | 1.33.0    | [https://github.com/kubernetes-sigs/cri-tools](https://github.com/kubernetes-sigs/cri-tools/releases)      |
-| kubernetes                | 1.33.2    | [https://github.com/kubernetes/kubernetes](https://github.com/kubernetes/kubernetes/releases)          |
-| calico                    | 3.30.2    | [https://github.com/projectcalico/calico](https://github.com/projectcalico/calico/releases)           |
-| helm                      | 3.18.4    | [https://github.com/helm/helm](https://github.com/helm/helm/releases)               |
-| Nginx Gateway Fabric      | 2.0.2     | [https://github.com/nginx/nginx-gateway-fabric](https://github.com/nginx/nginx-gateway-fabric/releases)     |
-| Metrics Server            | 0.7.1     | [https://github.com/kubernetes-sigs/metrics-server](https://github.com/kubernetes-sigs/metrics-server/releases)   |
+| Software Name        | Version | Reference                                                                                                       |
+| -------------------- | ------- | --------------------------------------------------------------------------------------------------------------- |
+| Virtualbox           | 7.1.12  | [https://virtualbox.org](https://download.virtualbox.org/virtualbox/7.1.12/)                                    |
+| Ubuntu Server        | 24.04   | [https://ubuntu.com](https://ubuntu.com/download/server)                                                        |
+| containerd           | 2.1.3   | [https://github.com/containerd/containerd](https://github.com/containerd/containerd/releases)                   |
+| crictl               | 1.33.0  | [https://github.com/kubernetes-sigs/cri-tools](https://github.com/kubernetes-sigs/cri-tools/releases)           |
+| kubernetes           | 1.33.2  | [https://github.com/kubernetes/kubernetes](https://github.com/kubernetes/kubernetes/releases)                   |
+| calico               | 3.30.2  | [https://github.com/projectcalico/calico](https://github.com/projectcalico/calico/releases)                     |
+| helm                 | 3.18.4  | [https://github.com/helm/helm](https://github.com/helm/helm/releases)                                           |
+| Nginx Gateway Fabric | 2.0.2   | [https://github.com/nginx/nginx-gateway-fabric](https://github.com/nginx/nginx-gateway-fabric/releases)         |
+| MetalLB              | 0.15.2  | [https://github.com/metallb/metallb](https://github.com/metallb/metallb/releases)                               |
+| Metrics Server       | 0.8.0   | [https://github.com/kubernetes-sigs/metrics-server](https://github.com/kubernetes-sigs/metrics-server/releases) |
+| kustomize            | v5.7.0  | [https://github.com/kubernetes-sigs/kustomize](https://github.com/kubernetes-sigs/kustomize/releases)           |
+| wrk                  | 4.2.0   | [https://github.com/wg/wrk](https://github.com/wg/wrk)                                                          |
 
 <a id="step1"></a>
 
@@ -98,44 +100,36 @@ lsmod | grep vboxguest
   - Adapter 1
     - Attached to: `Bridged Network`
     - Name: `en0: WiFi` (Interface ที่เชื่อมต่อกับ Internet)
-  - Adapter 2
-    - Enabel Network Adapter
-    - Attached to: `Internal Network`
-    - Name: `WUNCANet` (ตั้งชื่อ Internal Network ใหม่เพื่อใช้สื่อสารใน Cluster)
 - Click `OK` button
 - Start VM
 
 ### config network ip address for master1
 
 ```bash
+# เปลี่ยนชื่อ ของ VM ให้เป็น master1
+sudo hostnamectl set-hostname master1
+```
+
+```bash
 # ตรวจสอบ Interface ที่มีอยู่ใน MV
 ip addr
 ifconfig
 
-# ทำการ Up Interface ที่ยังไม่เห็นจากคำสั่ง ifconfig
-sudo ifconfig enp0s9 up
-
-# แก้ไขค่าของ Network Interfaces ทั้ง 2 
+# แก้ไขค่าของ Network Interfaces
 sudo vi /etc/netplan/50-cloud-init.yaml
 ```
 
 ```yaml
 network:
   ethernets:
-    enp0s8:  # Interface ที่เป็น Bridged Adapter
-      addresses: [192.168.x.yy/24] # Ip ที่อยู่ใน Network เดียวกันกับเครื่อง Host
+    enp0s8: # Interface ที่เป็น Bridged Adapter
+      addresses: [192.168.1.51/24] # Ip ที่อยู่ใน Network เดียวกันกับเครื่อง Host
       routes:
         - to: default
-          via: 192.168.x.254
+          via: 192.168.1.254
       nameservers:
         search: [local]
-        addresses: [192.168.2.153] # Ip ของ DNS Server
-      dhcp4: false
-    enp0s9:  # Interface ที่เป็น Internal Network
-      addresses: [10.0.2.4/24]
-      nameservers:
-        search: [local]
-        addresses: [8.8.8.8, 8.8.8.4]
+        addresses: [192.168.1.2, 192.168.1.3] # Ip ของ DNS Server
       dhcp4: false
   version: 2
 ```
@@ -145,35 +139,6 @@ sudo netplan apply
 ifconfig enp0s8
 ```
 
-### เพิ่ม Routing table `ในเครื่อง Host` ให้สามารถติดต่อกับ VM ที่อยู่ใน Internal Network ได้
-
-```bash
-# สำหรับ MacOS ==================
-netstat -rn -f inet
-sudo route delete 10.0.2.0/24  # ถ้ามีอยู่แล้ว ให้ลบทิ้งก่อน
-sudo route add -net 10.0.2.0/24 192.168.x.yy  # Ip ของ Bridged Adapter
-netstat -rn -f inet
-
-# สำหรับ Windows =================
-route print
-route delete 10.0.2.0  # ถ้ามีอยู่แล้ว ให้ลบทิ้งก่อน
-route add 10.0.2.0 MASK 255.255.255.0 192.168.x.yy # Ip ของ Bridged Adapter
-route print
-```
-
-### Enable IP Forwarding and s-nat
-
-```bash
-# ให้ VM master1 สามารถทำ ip forward ได้
-echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward && \
-sudo sh -c "echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf" && \
-sudo sysctl -p
-
-# สำหรับทุก package ที่มาจาก network 10.0.2.0/24 ให้ทำการ Masquerade หลังออกไป (ที่ Interface Internal Network ของ VM master1)
-sudo iptables -t nat -L -nv
-sudo iptables -t nat -A POSTROUTING -o enp0s8 -s 10.0.2.0/24 -j MASQUERADE
-```
-
 ---
 
 ### 2.3 Config Network Adapter worker1 (Worker1 Only)
@@ -181,8 +146,8 @@ sudo iptables -t nat -A POSTROUTING -o enp0s8 -s 10.0.2.0/24 -j MASQUERADE
 - Go to VM Settings
 - Select Network menu
   - Adapter 1
-    - Attached to: `Internal Network`
-    - Name: `WUNCANet` (ใช้ชื่อเดียวกันกับ Internal Network ของ VM master1)
+    - Attached to: `Bridged Network`
+    - Name: `en0: WiFi` (Interface ที่เชื่อมต่อกับ Internet)
 - Click `OK` button
 - Start VM
 
@@ -191,13 +156,6 @@ sudo iptables -t nat -A POSTROUTING -o enp0s8 -s 10.0.2.0/24 -j MASQUERADE
 ```bash
 # เปลี่ยนชื่อ ของ VM ให้เป็น worker1
 sudo hostnamectl set-hostname worker1
-
-# แก้ไขไฟล์ hostname ให้เป็น worker1
-sudo vi /etc/hostname
-```
-
-```bash
-worker1
 ```
 
 ```bash
@@ -208,15 +166,14 @@ sudo vi /etc/netplan/50-cloud-init.yaml
 ```yaml
 network:
   ethernets:
-    enp0s8:  # Interface ที่เป็น Internal Network
-      addresses: [10.0.2.5/24]
+    enp0s8: # Interface ที่เป็น Internal Network
+      addresses: [192.168.1.56/24]
       routes:
         - to: default
-          via: 10.0.2.4
-          metric: 100
+          via: 192.168.1.254
       nameservers:
         search: [local]
-        addresses: [8.8.8.8, 8.8.8.4]
+        addresses: [192.168.1.2, 192.168.1.3]
       dhcp4: false
   version: 2
 ```
@@ -241,7 +198,8 @@ sudo apt install gcc make perl build-essential bzip2 tar apt-transport-https ca-
 sudo swapoff -a && \
 sudo sed -i '/swap/ s/^/#/' /etc/fstab && \
 sudo rm -f /swap.img && \
-systemctl disable swap.target
+systemctl disable swap.target && \
+free -h
 ```
 
 ### Configure Ubuntu 24.04 enable kernel modules
@@ -324,6 +282,7 @@ runtime-endpoint: unix:///run/containerd/containerd.sock
 image-endpoint: unix:///run/containerd/containerd.sock
 timeout: 10
 debug: false
+pull-image-on-create: false
 EOF
 
 sudo systemctl restart containerd && \
@@ -371,14 +330,9 @@ sudo init 0
 
 ```bash
 sudo hostnamectl set-hostname worker2
-sudo vi /etc/hostname
 ```
 
-```bash
-worker2
-```
-
-#### With VM worker2 change IP Address `10.0.2.5` to `10.0.2.6`
+#### With VM worker2 change IP Address `192.168.1.56` to `192.168.1.57`
 
 ```bash
 sudo vi /etc/netplan/50-cloud-init.yaml
@@ -392,14 +346,9 @@ sudo init 0
 
 ```bash
 sudo hostnamectl set-hostname worker3
-sudo vi /etc/hostname
 ```
 
-```bash
-worker3
-```
-
-#### With VM worker3 change IP Address `10.0.2.5` to `10.0.2.7`
+#### With VM worker3 change IP Address `192.168.1.56` to `192.168.1.58`
 
 ```bash
 sudo vi /etc/netplan/50-cloud-init.yaml
@@ -415,12 +364,9 @@ sudo init 0
 
 ```bash
 sudo kubeadm init \
-  --apiserver-advertise-address=10.0.2.4 \
-  --apiserver-bind-port=6443 \
-  --control-plane-endpoint=10.0.2.4:6443 \
   --pod-network-cidr=192.168.0.0/16 \
-  --cri-socket=/var/run/containerd/containerd.sock \
-  --v=5
+  --apiserver-advertise-address=192.168.1.51 \
+  --control-plane-endpoint=192.168.1.51
 
 mkdir -p $HOME/.kube && \
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config && \
@@ -448,7 +394,7 @@ nc 127.0.0.1 6443 -v
 ## Step 5. Join with kubernetes cluster (All Worker Nodes)
 
 ```bash
-sudo kubeadm join 10.0.2.4:6443 --token xxxxx.yyyyyyyyyyyyyyyy \
+sudo kubeadm join 192.168.1.51:6443 --token xxxxx.yyyyyyyyyyyyyyyy \
  --discovery-token-ca-cert-hash sha256:xyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyxyx
 ```
 
@@ -541,12 +487,45 @@ kubectl -n kubernetes-dashboard port-forward --address 0.0.0.0 svc/kubernetes-da
 #### Access dashboard
 
 ```html
-https://10.0.2.4:8443
+https://192.168.1.51:8443
 ```
 
 <a id="step8"></a>
 
 ## Step 8. Install NGINX Gateway Frabic Controller
+
+### Install MatalLB Controller
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.15.2/config/manifests/metallb-native.yaml
+```
+
+```bash
+mkdir ~/namespaces/metallb-system && \
+cd ~/namespaces/metallb-system
+
+tee metallb-config.yaml <<EOF
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: first-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 192.168.1.60-192.168.1.69
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: example
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - first-pool
+EOF
+
+kubectl apply -f metallb-config.yaml
+```
 
 ### Install NGINX Gateway fabric
 
@@ -585,7 +564,7 @@ kubectl get svc nginx-gateway -n nginx-gateway
 ##### Patch nginx-gateway service for assign external ip
 
 ```bash
-kubectl patch svc nginx-gateway -n nginx-gateway -p '{"spec": {"externalIPs": ["10.0.2.4"], "externalTrafficPolicy": "Cluster"}}'
+kubectl patch svc nginx-gateway -n nginx-gateway -p '{"spec": {"externalIPs": ["192.168.1.51"], "externalTrafficPolicy": "Cluster"}}'
 
 kubectl get svc nginx-gateway -n nginx-gateway -o json
 kubectl describe svc nginx-gateway -n nginx-gateway
@@ -651,7 +630,7 @@ kubectl describe gateway gateway
 #### Test the Application
 
 ```bash
-curl --resolve cafe.example.com:80:10.0.2.4 http://cafe.example.com/coffee -v
+curl --resolve cafe.example.com:80:192.168.1.61 http://cafe.example.com/coffee -v
 ```
 
 ```bash
@@ -660,7 +639,7 @@ Server name: coffee-7586895968-r26zn
 ```
 
 ```bash
-curl --resolve cafe.example.com:80:10.0.2.4 http://cafe.example.com/tea -v
+curl --resolve cafe.example.com:80:192.168.1.61 http://cafe.example.com/tea -v
 ```
 
 ```bash
@@ -701,17 +680,17 @@ kubectl apply -f cafe-routes.yaml
 #### Test HTTPS Redirect
 
 ```bash
-curl --resolve cafe.example.com:80:10.0.2.4 http://cafe.example.com:80/coffee --include
+curl --resolve cafe.example.com:80:192.168.1.51 http://cafe.example.com:80/coffee --include
 
-curl --resolve cafe.example.com:80:10.0.2.4 http://cafe.example.com:80/tea --include
+curl --resolve cafe.example.com:80:192.168.1.51 http://cafe.example.com:80/tea --include
 ```
 
 #### Access Coffee and Tea
 
 ```bash
-curl --resolve cafe.example.com:443:10.0.2.4 https://cafe.example.com:443/coffee --insecure
+curl --resolve cafe.example.com:443:192.168.1.51 https://cafe.example.com:443/coffee --insecure
 
-curl --resolve cafe.example.com:443:10.0.2.4 https://cafe.example.com:443/tea --insecure
+curl --resolve cafe.example.com:443:192.168.1.51 https://cafe.example.com:443/tea --insecure
 ```
 
 #### Remove the ReferenceGrant
@@ -719,7 +698,7 @@ curl --resolve cafe.example.com:443:10.0.2.4 https://cafe.example.com:443/tea --
 ```bash
 kubectl delete -f reference-grant.yaml
 
-curl --resolve cafe.example.com:443:10.0.2.4 https://cafe.example.com:443/coffee --insecure -vvv
+curl --resolve cafe.example.com:443:192.168.1.51 https://cafe.example.com:443/coffee --insecure -vvv
 
  kubectl describe gateway gateway
 ```
@@ -731,7 +710,7 @@ curl --resolve cafe.example.com:443:10.0.2.4 https://cafe.example.com:443/coffee
 ### Install Metrics Server
 
 ```bash
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.7.1/components.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.8.0/components.yaml
 
 kubectl patch deployment metrics-server -n kube-system \
   --type='json' \
@@ -750,8 +729,8 @@ kubectl top pod my-nginx
 ### Patch cafe example
 
 ```bash
-cd namespaces
-mkdir hpa
+cd ~/namespaces && \
+mkdir hpa && \
 cd hpa
 
 # ------------------------------------
