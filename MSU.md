@@ -247,10 +247,12 @@ sudo netplan apply
 
 
 ## 3. Init Control plane (`master01` node)
-   A pod cidr must not overlap with a node cidr 
+#### 3.1   A pod cidr must not overlap with a node cidr 
    - node cidr : 10.0.2.0/24
    - pod cidr : 10.244.0.0/16
    - host cidr : 10.3.6.0/22
+
+#### 3.2 init control plane 
 ```bash
 #init controlvplane 
 sudo kubeadm init \
@@ -269,9 +271,7 @@ export KUBECONFIG=/etc/kubernetes/admin.conf
 
 ```
 
-### 5.3. Install the Pod Network Add-on (Calico)
-
-A Container Network Interface (CNI) plugin is required for pods to communicate with each other. We will use Calico.
+#### 3.3 Install CNI with Calico
 
 ```bash
 # Apply the Calico operator manifest
@@ -285,18 +285,14 @@ watch kubectl get pods -A
 ```
 
 
-
+## 4. Have the worker nodes join the master node (`master01`)
 Once a controlplane is created, worker nodes can join using the output token
 
 ```bash
-
-  kubeadm join 10.0.2.4:6443 --token aimdme.4h71q03f6rtpxknp \
-	--discovery-token-ca-cert-hash sha256:968145f35645814faa0022cd89dcd56fa8a7bb04b207a27d204bc8aa9313387a \
-	--control-plane 
-
-Then you can join any number of worker nodes by running the following on each as root:
-
+#join 
 kubeadm join 10.0.2.4:6443 --token aimdme.4h71q03f6rtpxknp \
 	--discovery-token-ca-cert-hash sha256:968145f35645814faa0022cd89dcd56fa8a7bb04b207a27d204bc8aa9313387a 
 
+#Wait until the worker nodes are ready
+watch kubectl get nodes
 ```
