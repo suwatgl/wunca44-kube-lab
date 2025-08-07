@@ -250,26 +250,22 @@ sudo netplan apply
    A pod cidr must not overlap with a node cidr 
    - node cidr : 10.0.2.0/24
    - pod cidr : 10.244.0.0/16
-   - host cidr : 192.168.0.0/24
+   - host cidr : 10.3.6.0/22
 ```bash
 #init controlvplane 
 sudo kubeadm init \
-  --pod-network-cidr=10.244.0.0/16 \
+  --pod-network-cidr=192.168.0.0/16 \
   --apiserver-advertise-address=10.0.2.4 \
   --control-plane-endpoint=10.0.2.4
 
-  sudo kubeadm init \
-  --apiserver-advertise-address=10.0.2.4 \
-  --apiserver-bind-port=6443 \
-  --control-plane-endpoint=10.0.2.4:6443 \
-  --pod-network-cidr=10.244.0.0/16
 
-#set up the kubeconfig file
-mkdir -p $HOME/.kube && \
-sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config && \
-sudo chown $(id -u):$(id -g) $HOME/.kube/config && \
-export KUBECONFIG=/etc/kubernetes/admin.conf && \
-sudo chmod -R 755 /etc/kubernetes/admin.conf
+#To start using a cluster, you need to run the following as a regular user
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+#Alternatively, if you are the root user, you can run:
+export KUBECONFIG=/etc/kubernetes/admin.conf
 
 ```
 
@@ -284,14 +280,23 @@ kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.30.2
 # Apply the Calico custom resources, which define the network configuration
 kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.30.2/manifests/custom-resources.yaml
 
-# Monitor the Calico pods until they are all running
-watch kubectl get pods -n calico-system
+# All pods must be up and running  
+watch kubectl get pods -A
 ```
+
+
 
 Once a controlplane is created, worker nodes can join using the output token
 
 ```bash
-kubeadm join 10.0.2.4:6443 --token b5p23b.grxwjyedmf9xcqog \
-	--discovery-token-ca-cert-hash sha256:0d814ac48c7f3294699c6a892e493370b71a2ea138b16e30999a042a110d8f4c 
+
+  kubeadm join 10.0.2.4:6443 --token aimdme.4h71q03f6rtpxknp \
+	--discovery-token-ca-cert-hash sha256:968145f35645814faa0022cd89dcd56fa8a7bb04b207a27d204bc8aa9313387a \
+	--control-plane 
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+kubeadm join 10.0.2.4:6443 --token aimdme.4h71q03f6rtpxknp \
+	--discovery-token-ca-cert-hash sha256:968145f35645814faa0022cd89dcd56fa8a7bb04b207a27d204bc8aa9313387a 
 
 ```
