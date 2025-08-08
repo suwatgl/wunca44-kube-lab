@@ -1,4 +1,4 @@
-### LAB Environments
+### # Day 1
 
 ![Network Diagram](https://github.com/suwatgl/wunca44-kube-lab/blob/main/images/MSUlab.png?raw=true)
 
@@ -118,8 +118,6 @@ timeout: 10
 debug: false
 EOF
 
-sudo systemctl restart containerd && \
-sudo systemctl status containerd
 ```
 Common crictl Commands
 ```bash
@@ -128,6 +126,8 @@ sudo crictl images
 sudo crictl ps
 sudo crictl pods
 sudo crictl stats
+#delete all images 
+sudo crictl rmi --all
 ```
 
 
@@ -149,6 +149,8 @@ sudo apt-mark hold kubelet kubeadm kubectl
 
 # Enable the kubelet service
 sudo systemctl enable --now kubelet
+
+#
 
 sudo init 0
 ```
@@ -173,8 +175,7 @@ resolvectl status
 #inspect gateway 
 ip route
 
-#add master01 into hosts file 
-echo 10.0.2.4 master01 >> /etc/hosts
+
 #set hostname 
 sudo hostnamectl set-hostname master01
 
@@ -241,6 +242,9 @@ EOF
 
 #Apply changes 
 sudo netplan apply
+
+#Verify internet connection 
+curl google.com
 ```
 
 #### 2.3 Configure worker02 and the other nodes as in section 2.2
@@ -249,7 +253,7 @@ sudo netplan apply
 ## 3. Init Control plane (`master01` node)
 #### 3.1   A pod cidr must not overlap with a node cidr 
    - node cidr : 10.0.2.0/24
-   - pod cidr : 10.244.0.0/16
+   - pod cidr : 192.168.0.0/16
    - host cidr : 10.3.6.0/22
 
 #### 3.2 init control plane 
@@ -260,14 +264,13 @@ sudo kubeadm init \
   --apiserver-advertise-address=10.0.2.4 \
   --control-plane-endpoint=10.0.2.4
 
-
 #To start using a cluster, you need to run the following as a regular user
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
+export KUBECONFIG=/etc/kubernetes/admin.conf && \
+sudo chmod -R 755 /etc/kubernetes/admin.conf
 
-#Alternatively, if you are the root user, you can run:
-export KUBECONFIG=/etc/kubernetes/admin.conf
 
 ```
 
@@ -284,15 +287,192 @@ kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.30.2
 watch kubectl get pods -A
 ```
 
+### 3.4 (Optional) to reset and re-initialize the control plane  
+```bash
+sudo kubeadm reset 
+sudo rm -rf $HOME/.kube
+sudo crictl rmi --all
+```
 
-## 4. Have the worker nodes join the master node (`master01`)
+## 4. Have the worker nodes join the master node
 Once a controlplane is created, worker nodes can join using the output token
 
 ```bash
-#join 
-kubeadm join 10.0.2.4:6443 --token aimdme.4h71q03f6rtpxknp \
-	--discovery-token-ca-cert-hash sha256:968145f35645814faa0022cd89dcd56fa8a7bb04b207a27d204bc8aa9313387a 
+#Use the join command output from sudo kubeadm init (see section 3.2) to add worker nodes (run in worker nodes)
+sudo kubeadm join 10.0.2.4:6443 --token 5869hq.4ziibryvbzkfmdnt \
+	--discovery-token-ca-cert-hash sha256:6c7fdefe7ada3e9e7357034773a96eed392005cbb1999bb62dc39ef4722da020 
 
+#At the controlplane node 
 #Wait until the worker nodes are ready
 watch kubectl get nodes
+#or 
+watch kubectl get pods -A
 ```
+
+## 5. Install Helm Package Manager
+#### 5.1 Open the controlplane terminal and install Helm
+```bash
+# Get the signed gpg  
+curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+
+# Add the Helm to sources.list 
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+
+# Update and install Helm
+sudo apt-get update && \
+sudo apt-get install -y helm
+```
+
+#### 5.2 Install Kubernetes Dashboard
+```bash
+# Add the Kubernetes Dashboard Helm repository
+helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
+
+# Install the dashboard into its own namespace
+helm upgrade --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard --create-namespace --namespace kubernetes-dashboard 
+
+# Create a ServiceAccount named 'admin-user'
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin-user
+  namespace: kubernetes-dashboard
+EOF
+
+# Grant the ServiceAccount cluster-wide admin privileges
+cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-user
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: admin-user
+  namespace: kubernetes-dashboard
+EOF
+
+# Generates a token for an admin-user
+kubectl -n kubernetes-dashboard create token admin-user
+
+# Bind service port 8443:443 for the address 0.0.0.0 
+kubectl -n kubernetes-dashboard port-forward --address 0.0.0.0 svc/kubernetes-dashboard-kong-proxy 8443:443 > /dev/null &
+
+#Open a browser and access the dashboard via
+https://10.3.6.90:8443/ 
+```
+
+## 6. NGINX Gateway Fabric and Example App Deployment
+#### 6.1 Install the NGINX Gateway Fabric
+ref: https://docs.nginx.com/nginx-gateway-fabric/install/manifests/
+```bash
+# 1. Install the Gateway API CRDs (Custom Resource Definitions)
+kubectl kustomize "https://github.com/nginx/nginx-gateway-fabric/config/crd/gateway-api/standard?ref=v2.0.2" | kubectl apply -f -
+
+# 2. Deploy the NGINX Gateway Fabric CRDs
+kubectl apply --server-side -f https://raw.githubusercontent.com/nginx/nginx-gateway-fabric/v2.0.2/deploy/crds.yaml
+
+# 3. Deploy NGINX Gateway Fabric itself
+kubectl apply -f https://raw.githubusercontent.com/nginx/nginx-gateway-fabric/v2.0.2/deploy/default/deploy.yaml
+
+# 4. Verify the deployment
+watch kubectl get pods -n nginx-gateway
+
+#Use the public IP of the load balancer to access NGINX Gateway Fabric. To get the public IP which is reported in the EXTERNAL-IP column:
+kubectl get svc nginx-gateway -n nginx-gateway
+
+kubectl patch svc nginx-gateway \
+  -n nginx-gateway \
+  --type='merge' \
+  -p '{
+    "spec": {
+      "ports": [
+        {
+          "name": "http",
+          "port": 80,
+          "protocol": "TCP",
+          "targetPort": 80
+        },
+        {
+          "name": "https",
+          "port": 443,
+          "protocol": "TCP",
+          "targetPort": 443
+        }
+      ]
+    }
+  }'
+```
+```bash
+kubectl get svc nginx-gateway -n nginx-gateway -o wide/json/yaml
+kubectl describe svc nginx-gateway -n nginx-gateway
+
+```
+#### 6.2 Deploy a simple app (cafe)
+```bash
+
+# List of geteway class 
+kubectl get gatewayclass
+kubectl describe gatewayclass
+
+# Clone the NGINX Gateway Fabric repository to get the examples
+git clone --branch v2.0.2 https://github.com/nginx/nginx-gateway-fabric.git
+cd nginx-gateway-fabric/examples/cafe-example
+
+# Create the Gateway resource (port 80)
+kubectl apply -f gateway.yaml
+
+#inspect gateway object
+kubectl get pod
+kubectl get svc
+
+# Deploy the coffee and tea deployments and services
+kubectl apply -f cafe.yaml
+
+# Insepct cafe deployment 
+watch kubectl get pods -n default
+
+# Create the HTTPRoute
+kubectl apply -f cafe-routes.yaml
+
+# Verify the Gateway and HTTPRoute
+kubectl get svc -n default -o wide
+
+kubectl patch svc coffee -n default -p '{"spec": {"externalIPs": ["10.0.2.4","192.168.30.19"]}}'
+
+kubectl get httproute -A
+kubectl describe httproute coffee -n default
+kubectl get endpoints coffee -n default
+kubectl get endpoints coffee -o wide
+
+```
+
+#### 6.3 Reference
+
+```bash
+# gatewayClass detail
+kubectl get gatewayclass -A
+kubectl describe gatewayclass nginx
+
+# geteway detail
+kubectl get gateway -A
+kubectl describe gateway gateway
+
+# httproutes detail
+kubectl get httproutes -A
+kubectl describe httproutes
+
+# service detail
+kubectl get svc -A
+kubectl get svc -n nginx-gateway -o wide
+kubectl get svc -n default -o wide
+```
+
+# Day 2
+# KubeBench 
+# Auto Scale
+# CI/CD Auto deployment
