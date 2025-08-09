@@ -7,7 +7,10 @@
 #### 1.1 Download and import VirtualBox image(s)
 
 The VirtualBox images include both AMD and ARM architectures
-https://drive.google.com/drive/folders/1KarpiITxRwtPABC92949cbotvQP_aQ4y
+(1) https://drive.google.com/drive/folders/1KarpiITxRwtPABC92949cbotvQP_aQ4y
+
+(2) https://srruoffice365-my.sharepoint.com/:f:/g/personal/thongchai_c_ms_srru_ac_th/EvSAIK52AWRLn6FXND3KxIMB2PlDZ1dScaokcfDVL2_Gew?e=zZrfq0
+
 
 All virtual machines require at least the following specifications listed in the table.
 
@@ -175,7 +178,6 @@ resolvectl status
 #inspect gateway 
 ip route
 
-
 #set hostname 
 sudo hostnamectl set-hostname master01
 
@@ -252,9 +254,9 @@ curl google.com
 
 ## 3. Init Control plane (`master01` node)
 #### 3.1   A pod cidr must not overlap with a node cidr 
-   - node cidr : 10.0.2.0/24
-   - pod cidr : 192.168.0.0/16
-   - host cidr : 10.3.6.0/22
+   - Node cidr : 10.0.2.0/24
+   - Pod cidr : 192.168.0.0/16
+   - Cluster cidr : 10.3.6.0/22
 
 #### 3.2 init control plane 
 ```bash
@@ -382,7 +384,6 @@ kubectl apply -f https://raw.githubusercontent.com/nginx/nginx-gateway-fabric/v2
 # 4. Verify the deployment
 watch kubectl get pods -n nginx-gateway
 
-#Use the public IP of the load balancer to access NGINX Gateway Fabric. To get the public IP which is reported in the EXTERNAL-IP column:
 kubectl get svc nginx-gateway -n nginx-gateway
 
 kubectl patch svc nginx-gateway \
@@ -450,6 +451,7 @@ kubectl get endpoints coffee -n default
 kubectl get endpoints coffee -o wide
 
 ```
+#### 6.3 Students deplay an nginx:alpine image with a domain 
 
 #### 6.3 Reference
 
@@ -474,5 +476,6 @@ kubectl get svc -n default -o wide
 
 # Day 2
 # KubeBench 
-# Auto Scale
+# Autoscaling
+# PersistentVolumeClaim (PVC)
 # CI/CD Auto deployment
