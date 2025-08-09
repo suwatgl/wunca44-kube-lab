@@ -6,10 +6,13 @@
 
 #### 1.1 Download and import VirtualBox image(s)
 
-The VirtualBox images include both AMD and ARM architectures
-(1) https://drive.google.com/drive/folders/1KarpiITxRwtPABC92949cbotvQP_aQ4y
+VirtualBox
+https://www.virtualbox.org/wiki/Downloads
 
-(2) https://srruoffice365-my.sharepoint.com/:f:/g/personal/thongchai_c_ms_srru_ac_th/EvSAIK52AWRLn6FXND3KxIMB2PlDZ1dScaokcfDVL2_Gew?e=zZrfq0
+The VirtualBox images include both AMD and ARM architectures
+ https://drive.google.com/drive/folders/1KarpiITxRwtPABC92949cbotvQP_aQ4y
+
+ https://srruoffice365-my.sharepoint.com/:f:/g/personal/thongchai_c_ms_srru_ac_th/EvSAIK52AWRLn6FXND3KxIMB2PlDZ1dScaokcfDVL2_Gew?e=zZrfq0
 
 
 All virtual machines require at least the following specifications listed in the table.
