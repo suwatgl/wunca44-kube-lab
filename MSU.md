@@ -4,6 +4,9 @@
 
 ## 1. Setting Up a Virtual Machine
 
+#### Log 
+https://docs.google.com/document/d/1uUt1JzsUjp0wH9PLtAoqVlGCY2yCaGuYC4l5ewK4knk
+ 
 #### 1.1 Download and import VirtualBox image(s)
 
 VirtualBox
