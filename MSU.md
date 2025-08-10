@@ -320,6 +320,11 @@ sudo kubeadm join 10.0.2.4:6443 --token 5869hq.4ziibryvbzkfmdnt \
 watch kubectl get nodes
 #or 
 watch kubectl get pods -A
+
+#join error 
+ping registry.k8s.io
+curl -I https://registry.k8s.io
+
 ```
 
 ## 5. Install Helm Package Manager
@@ -397,27 +402,6 @@ watch kubectl get pods -n nginx-gateway
 
 kubectl get svc nginx-gateway -n nginx-gateway
 
-kubectl patch svc nginx-gateway \
-  -n nginx-gateway \
-  --type='merge' \
-  -p '{
-    "spec": {
-      "ports": [
-        {
-          "name": "http",
-          "port": 80,
-          "protocol": "TCP",
-          "targetPort": 80
-        },
-        {
-          "name": "https",
-          "port": 443,
-          "protocol": "TCP",
-          "targetPort": 443
-        }
-      ]
-    }
-  }'
 ```
 ```bash
 kubectl get svc nginx-gateway -n nginx-gateway -o wide/json/yaml
@@ -454,12 +438,40 @@ kubectl apply -f cafe-routes.yaml
 # Verify the Gateway and HTTPRoute
 kubectl get svc -n default -o wide
 
-kubectl patch svc coffee -n default -p '{"spec": {"externalIPs": ["10.0.2.4","192.168.30.19"]}}'
+kubectl patch svc coffee -n default -p '{"spec": {"externalIPs": ["10.0.2.4","192.168.30.217"]}}'
+kubectl patch svc coffee \
+  -n default \
+  --type='merge' \
+  -p '{
+    "spec": {
+      "ports": [
+        {
+          "name": "http",
+          "port": 80,
+          "protocol": "TCP",
+          "targetPort": 80
+        },
+        {
+          "name": "https",
+          "port": 443,
+          "protocol": "TCP",
+          "targetPort": 443
+        }
+      ]
+    }
+  }'
 
 kubectl get httproute -A
 kubectl describe httproute coffee -n default
 kubectl get endpoints coffee -n default
 kubectl get endpoints coffee -o wide
+
+# direct to pod 
+curl 192.168.231.4:8080 -v 
+curl --resolve cafe.example.com:80:10.0.2.4 http://cafe.example.com/coffee -v #internal
+curl --resolve cafe.example.com:80:192.168.30.217 http://cafe.example.com/coffee -v #external
+
+#add 10.0.2.4 to host 
 
 ```
 #### 6.3 Students deplay an nginx:alpine image with a domain 
@@ -486,7 +498,117 @@ kubectl get svc -n default -o wide
 ```
 
 # Day 2
-# KubeBench 
 # Autoscaling
-# PersistentVolumeClaim (PVC)
+```bash 
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+kubectl patch deployment metrics-server -n kube-system \
+  --type='json' \
+  -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
+
+kubectl top nodes
+kubectl top pods
+
+```
+
+```bash
+sudo tee coffee.yaml > /dev/null <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coffee
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coffee
+  template:
+    metadata:
+      labels:
+        app: coffee
+    spec:
+      containers:
+      - name: coffee
+        image: nginxdemos/nginx-hello:plain-text
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+          limits:
+            cpu: 200m
+            memory: 200Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coffee
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: coffee
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tea
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tea
+  template:
+    metadata:
+      labels:
+        app: tea
+    spec:
+      containers:
+      - name: tea
+        image: nginxdemos/nginx-hello:plain-text
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tea
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: tea
+EOF
+
+kubectl apply -f coffee.yaml 
+kubectl autoscale deployment coffee --cpu-percent=50 --min=1 --max=10
+kubectl get hpa --watch
+
+wrk -t10 -c100 -d30s http://cafe.example.com/tea
+#vs.
+wrk -t10 -c100 -d30s http://cafe.example.com/coffee
+```
+# KubeBench 
+```bash
+curl -L https://github.com/aquasecurity/kube-bench/releases/download/v0.6.2/kube-bench_0.6.2_linux_amd64.tar.gz -o kube-bench_0.6.2_linux_amd64.tar.gz
+
+tar -xvf kube-bench_0.6.2_linux_amd64.tar.gz
+
+sudo mv kube-bench /usr/local/bin/
+
+cd namespaces/kube-bench
+
+kube-bench --config-dir cfg --config cfg/config.yaml --benchmark cis-1.9
+```
+
+# PersistentVolume (PV) & PersistentVolumeClaim (PVC)
+
+
 # CI/CD Auto deployment
